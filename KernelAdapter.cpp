@@ -5,7 +5,6 @@
 #include <assert.h>
 
 #include<string>
-#include <iostream>
 
 using namespace std;
 
@@ -85,11 +84,11 @@ const char *getErrorString(cl_int error) {
     }
 }
 
-string src =
+const string src =
     #include "FastNoise.cl"
 ;
 #define KERNEL_COUNT 21
-char* kernel_names[KERNEL_COUNT] = {
+const char* kernel_names[KERNEL_COUNT] = {
     "GEN_Value2",
     "GEN_ValueFractal2",
     "GEN_Perlin2",
@@ -136,47 +135,41 @@ enum Kernel {
     WHITENOISEINT4 = 20,
 };
 
-cl::Context context;
-cl::Device gpu;
-cl::Kernel kernels[KERNEL_COUNT];
-
 //Initialize
-void load_kernels(/*const char* src, const size_t len*/) {
-    ///Getting info
-    vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
+class KernelAdapter::impl {
+public:
+    std::unique_ptr<cl::Device> device = nullptr;
+    cl::Context context;
+    cl::Kernel* kernels = nullptr;
 
-    bool gpu_found = false;
-    for (size_t i = 0; i < platforms.size(); i++) {
-        auto pl = platforms[i];
-        vector<cl::Device> devices;
-        pl.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-
-        if (devices.size() > 0) {
-            gpu = devices.front();
-            gpu_found = true;
-            break;
-        }
+    impl() {}
+    ~impl() {
+        if (kernels != nullptr) delete[] kernels;
     }
-    assert(gpu_found);
-    context = cl::Context(gpu);
+};
 
-    //cl::Program::Sources source(1, make_pair(src, len + 1));
+KernelAdapter::KernelAdapter(Device& dev) : pimpl( new impl) {
+
+    assert(&dev != nullptr);
+    pimpl->device = unique_ptr<cl::Device>((cl::Device*)(dev.getDevicePtr()));
+    pimpl->context = cl::Context(*pimpl->device);
+
     cl::Program::Sources source(1, make_pair(src.c_str(), src.length() + 1));
-    cl::Program program(context, source);
+    cl::Program program(pimpl->context, source);
     auto err = program.build("-cl-std=CL1.2");
     assert(err == CL_SUCCESS);
 
+    pimpl->kernels = new cl::Kernel[KERNEL_COUNT];
     for (size_t i = 0; i < KERNEL_COUNT; i++) {
-        kernels[i] = cl::Kernel(program, kernel_names[i], &err);
+        pimpl->kernels[i] = cl::Kernel(program, kernel_names[i], &err);
         assert(err == CL_SUCCESS);
     }
-
 }
+KernelAdapter::~KernelAdapter() {}
 
 //Kernels
 //2D
-float* GEN_Value2(
+float* KernelAdapter::GEN_Value2(
     float m_frequency,              // |
     int m_interp,                   // | IN : class members
     cl_uchar* m_perm,               // |
@@ -190,13 +183,13 @@ float* GEN_Value2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[VALUE2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[VALUE2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -220,7 +213,7 @@ float* GEN_Value2(
 
     return result;
 }
-float* GEN_ValueFractal2(
+float* KernelAdapter::GEN_ValueFractal2(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
@@ -235,13 +228,13 @@ float* GEN_ValueFractal2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[VALUEFRACTAL2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -270,7 +263,7 @@ float* GEN_ValueFractal2(
 
     return result;
 }
-float* GEN_Perlin2(
+float* KernelAdapter::GEN_Perlin2(
     float m_frequency,                                // |
     int m_interp,                                     // | IN : class members
     cl_uchar* m_perm, cl_uchar* m_perm12,             // |
@@ -284,15 +277,15 @@ float* GEN_Perlin2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[PERLIN2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[PERLIN2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -317,7 +310,7 @@ float* GEN_Perlin2(
 
     return result;
 }
-float* GEN_PerlinFractal2(
+float* KernelAdapter::GEN_PerlinFractal2(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
@@ -332,15 +325,15 @@ float* GEN_PerlinFractal2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[PERLINFRACTAL2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -370,7 +363,7 @@ float* GEN_PerlinFractal2(
 
     return result;
 }
-float* GEN_Simplex2(
+float* KernelAdapter::GEN_Simplex2(
     float m_frequency,                                // |
     cl_uchar* m_perm, cl_uchar* m_perm12,             // | IN : class members
 
@@ -383,15 +376,15 @@ float* GEN_Simplex2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[SIMPLEX2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -415,7 +408,7 @@ float* GEN_Simplex2(
 
     return result;
 }
-float* GEN_SimplexFractal2(
+float* KernelAdapter::GEN_SimplexFractal2(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
     cl_uchar* m_perm,  cl_uchar* m_perm12,                                     // |
@@ -429,15 +422,15 @@ float* GEN_SimplexFractal2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[SIMPLEXFRACTAL2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -466,7 +459,7 @@ float* GEN_SimplexFractal2(
 
     return result;
 }
-float* GEN_Cellular2(
+float* KernelAdapter::GEN_Cellular2(
     float m_frequency,                                        // |
     int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
     cl_uchar* m_perm, int m_seed,                             // |
@@ -480,13 +473,13 @@ float* GEN_Cellular2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[CELLULAR2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[CELLULAR2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -512,7 +505,7 @@ float* GEN_Cellular2(
 
     return result;
 }
-float* GEN_WhiteNoise2(
+float* KernelAdapter::GEN_WhiteNoise2(
     int m_seed,                     // IN : class members
 
     size_t size_x, size_t size_y,   // |
@@ -524,11 +517,11 @@ float* GEN_WhiteNoise2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISE2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -550,7 +543,7 @@ float* GEN_WhiteNoise2(
 
     return result;
 }
-float* GEN_WhiteNoiseInt2(
+float* KernelAdapter::GEN_WhiteNoiseInt2(
     int m_seed,                     // IN : class members
 
     size_t size_x, size_t size_y,   // |
@@ -562,11 +555,11 @@ float* GEN_WhiteNoiseInt2(
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISEINT2]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -590,7 +583,7 @@ float* GEN_WhiteNoiseInt2(
 }
 
 //3D
-float* GEN_Value3(
+float* KernelAdapter::GEN_Value3(
     float m_frequency,                              // |
     int m_interp,                                   // | IN : class members
     cl_uchar* m_perm,                               // |
@@ -604,13 +597,13 @@ float* GEN_Value3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[VALUE3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[VALUE3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -637,7 +630,7 @@ float* GEN_Value3(
 
     return result;
 }
-float* GEN_ValueFractal3(
+float* KernelAdapter::GEN_ValueFractal3(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
@@ -652,13 +645,13 @@ float* GEN_ValueFractal3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[VALUEFRACTAL3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -690,7 +683,7 @@ float* GEN_ValueFractal3(
 
     return result;
 }
-float* GEN_Perlin3(
+float* KernelAdapter::GEN_Perlin3(
     float m_frequency,                                // |
     int m_interp,                                     // | IN : class members
     cl_uchar* m_perm, cl_uchar* m_perm12,             // |
@@ -704,15 +697,15 @@ float* GEN_Perlin3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[PERLIN3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[PERLIN3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -740,7 +733,7 @@ float* GEN_Perlin3(
 
     return result;
 }
-float* GEN_PerlinFractal3(
+float* KernelAdapter::GEN_PerlinFractal3(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
@@ -755,15 +748,15 @@ float* GEN_PerlinFractal3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[PERLINFRACTAL3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -796,7 +789,7 @@ float* GEN_PerlinFractal3(
 
     return result;
 }
-float* GEN_Simplex3(
+float* KernelAdapter::GEN_Simplex3(
     float m_frequency,                                // |
     cl_uchar* m_perm, cl_uchar* m_perm12,             // | IN : class members
 
@@ -809,15 +802,15 @@ float* GEN_Simplex3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[SIMPLEX3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -844,7 +837,7 @@ float* GEN_Simplex3(
 
     return result;
 }
-float* GEN_SimplexFractal3(
+float* KernelAdapter::GEN_SimplexFractal3(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
     cl_uchar* m_perm,  cl_uchar* m_perm12,                                     // |
@@ -858,15 +851,15 @@ float* GEN_SimplexFractal3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[SIMPLEXFRACTAL3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_m_perm12(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
+    cl::Buffer buf_m_perm12(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm12, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -898,7 +891,7 @@ float* GEN_SimplexFractal3(
 
     return result;
 }
-float* GEN_Cellular3(
+float* KernelAdapter::GEN_Cellular3(
     float m_frequency,                                        // |
     int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
     cl_uchar* m_perm, int m_seed,                             // |
@@ -912,13 +905,13 @@ float* GEN_Cellular3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[CELLULAR3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[CELLULAR3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -947,7 +940,7 @@ float* GEN_Cellular3(
 
     return result;
 }
-float* GEN_WhiteNoise3(
+float* KernelAdapter::GEN_WhiteNoise3(
     int m_seed,                                     // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z,    // |
@@ -959,11 +952,11 @@ float* GEN_WhiteNoise3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISE3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -988,7 +981,7 @@ float* GEN_WhiteNoise3(
 
     return result;
 }
-float* GEN_WhiteNoiseInt3(
+float* KernelAdapter::GEN_WhiteNoiseInt3(
     int m_seed,                                     // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z,    // |
@@ -1000,11 +993,11 @@ float* GEN_WhiteNoiseInt3(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISEINT3]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -1031,7 +1024,7 @@ float* GEN_WhiteNoiseInt3(
 }
 
 //4D
-float* GEN_Simplex4(
+float* KernelAdapter::GEN_Simplex4(
     float m_frequency,                                              // |
     cl_uchar* m_perm,                                               // | IN : class members
 
@@ -1044,13 +1037,13 @@ float* GEN_Simplex4(
     size_t msize = size_x * size_y * size_z * size_w;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[SIMPLEX4]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX4]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_m_perm(context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
+    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
     assert(err == CL_SUCCESS);
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -1079,7 +1072,7 @@ float* GEN_Simplex4(
 
     return result;
 }
-float* GEN_WhiteNoise4(
+float* KernelAdapter::GEN_WhiteNoise4(
     int m_seed,                                                     // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z, size_t size_w,     // |
@@ -1091,11 +1084,11 @@ float* GEN_WhiteNoise4(
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISE4]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE4]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
@@ -1123,7 +1116,7 @@ float* GEN_WhiteNoise4(
 
     return result;
 }
-float* GEN_WhiteNoiseInt4(
+float* KernelAdapter::GEN_WhiteNoiseInt4(
     int m_seed,                                                 // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z, size_t size_w, // |
@@ -1135,11 +1128,11 @@ float* GEN_WhiteNoiseInt4(
     size_t msize = size_x * size_y * size_z * size_w;
 
     //Get CL objects
-    cl::Kernel kernel(kernels[WHITENOISEINT4]);
-    cl::CommandQueue cmd_queue(context, gpu);
+    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT4]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
 
     //Create buffers
-    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
