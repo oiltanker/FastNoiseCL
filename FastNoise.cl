@@ -2048,11 +2048,30 @@ void PerturbFractal2(float m_perturbAmp, float m_fractalBounding, float m_freque
 
 
 //Kernels
+
+typedef struct {
+    int m_seed;
+    float m_frequency;
+    int m_interp;
+    int m_noiseType;
+
+    int m_octaves;
+    float m_lacunarity;
+    float m_gain;
+    int m_fractalType;
+
+    float m_fractalBounding;
+
+    int m_cellularDistanceFunction;
+    int m_cellularReturnType;
+
+    float m_perturbAmp;
+    int m_perturb;
+} Snapshot;
+
 //2D
 __kernel void GEN_Value2(
-    float m_frequency,              // |
-    int m_interp,                   // | IN : class members
-    int m_seed,                     // |
+    Snapshot param,                 // IN : class members
 
     ulong size_x, ulong size_y,     // |
     float scale_x, float scale_y,   // | IN : Parameters
@@ -2065,126 +2084,26 @@ __kernel void GEN_Value2(
     size_t i = index / size_x;
     size_t j = index - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetValue2(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetValue2(param.m_frequency, param.m_interp, param.m_seed, x, y);
 }
 __kernel void GEN_ValueFractal2(
-    int m_fractalType, float m_frequency,                                      // |
-    float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y,                                                // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y,                                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetValueFractal2(m_fractalType, m_frequency, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
-}
-__kernel void GEN_Perlin2(
-    float m_frequency,                                // |
-    int m_interp,                                     // | IN : class members
-    int m_seed,                                       // |
-
-    ulong size_x, ulong size_y,                       // |
-    float scale_x, float scale_y,                     // | IN : Parameters
-    float offset_x, float offset_y,                   // |
-
-    __global float* noise)                            // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetPerlin2(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
-}
-__kernel void GEN_PerlinFractal2(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y,                                                // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y,                                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetPerlinFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
-}
-__kernel void GEN_Simplex2(
-    float m_frequency,                                // |
-    int m_seed,                                       // | IN : class members
-
-    ulong size_x, ulong size_y,                       // |
-    float scale_x, float scale_y,                     // | IN : Parameters
-    float offset_x, float offset_y,                   // |
-
-    __global float* noise)                            // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetSimplex2(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
-}
-__kernel void GEN_SimplexFractal2(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y,                                                // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y,                                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetSimplexFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
-}
-__kernel void GEN_Cellular2(
-    float m_frequency,                                        // |
-    int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    int m_seed,                                               // |
-
-    ulong size_x, ulong size_y,                               // |
-    float scale_x, float scale_y,                             // | IN : Parameters
-    float offset_x, float offset_y,                           // |
-
-    __global float* noise)                                    // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t i = index / size_x;
-    size_t j = index - i * size_x;
-
-    //Calculate value
-    noise[index] = GetCellular2(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
-}
-__kernel void GEN_WhiteNoise2(
-    int m_seed,                     // IN : class members
+    Snapshot param,                 // IN : class members
 
     ulong size_x, ulong size_y,     // |
     float scale_x, float scale_y,   // | IN : Parameters
@@ -2197,11 +2116,218 @@ __kernel void GEN_WhiteNoise2(
     size_t i = index / size_x;
     size_t j = index - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetWhiteNoise2(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetValueFractal2(param.m_fractalType, param.m_frequency, param.m_lacunarity, param.m_gain, param.m_octaves, param.m_fractalBounding, param.m_interp, param.m_seed, x, y);
+}
+__kernel void GEN_Perlin2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetPerlin2(param.m_frequency, param.m_interp, param.m_seed, x, y);
+}
+__kernel void GEN_PerlinFractal2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetPerlinFractal2(param.m_frequency, param.m_fractalType, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_fractalBounding, param.m_interp, param.m_seed, x, y);
+}
+__kernel void GEN_Simplex2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetSimplex2(param.m_frequency, param.m_seed, x, y);
+}
+__kernel void GEN_SimplexFractal2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetSimplexFractal2(param.m_frequency, param.m_fractalType, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_fractalBounding, param.m_seed, x, y);
+}
+__kernel void GEN_Cellular2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetCellular2(param.m_frequency, param.m_cellularDistanceFunction, param.m_cellularReturnType, param.m_seed, x, y);
+}
+__kernel void GEN_WhiteNoise2(
+    Snapshot param,                 // IN : class members
+
+    ulong size_x, ulong size_y,     // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y, // |
+
+    __global float* noise)          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetWhiteNoise2(param.m_seed, x, y);
 }
 __kernel void GEN_WhiteNoiseInt2(
-    int m_seed,                     // IN : class members
+    Snapshot param,                 // IN : class members
 
     ulong size_x, ulong size_y,     // |
     int scale_x, int scale_y,       // | IN : Parameters
@@ -2214,16 +2340,29 @@ __kernel void GEN_WhiteNoiseInt2(
     size_t i = index / size_x;
     size_t j = index - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb2(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y);
+        break;
+    case 2:
+        PerturbFractal2(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetWhiteNoiseInt2(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetWhiteNoiseInt2(param.m_seed, x, y);
 }
 //__kernel void GEN_Noise2();
 
 //3D
 __kernel void GEN_Value3(
-    float m_frequency,                              // |
-    int m_interp,                                   // | IN : class members
-    int m_seed,                                     // |
+    Snapshot param,                                 // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z,       // |
     float scale_x, float scale_y, float scale_z,    // | IN : Parameters
@@ -2237,132 +2376,27 @@ __kernel void GEN_Value3(
     size_t i = (index - k * size_x * size_y) / size_x;
     size_t j = index - k * size_x * size_y - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetValue3(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z  + offset_z);
+    noise[index] = GetValue3(param.m_frequency, param.m_interp, param.m_seed, x, y, z);
 }
 __kernel void GEN_ValueFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y, ulong size_z,                                  // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetValueFractal3(m_frequency, m_fractalType, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_Perlin3(
-    float m_frequency,                                // |
-    int m_interp,                                     // | IN : class members
-    int m_seed,                                       // |
-
-    ulong size_x, ulong size_y, ulong size_z,         // |
-    float scale_x, float scale_y, float scale_z,      // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,   // |
-
-    __global float* noise)                            // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetPerlin3(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_PerlinFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y, ulong size_z,                                  // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetPerlinFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_Simplex3(
-    float m_frequency,                                // |
-    int m_seed,                                       // | IN : class members
-
-    ulong size_x, ulong size_y, ulong size_z,         // |
-    float scale_x, float scale_y, float scale_z,      // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,   // |
-
-    __global float* noise)                            // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetSimplex3(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_SimplexFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    int m_seed,                                                                // |
-
-    ulong size_x, ulong size_y, ulong size_z,                                  // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,                            // |
-
-    __global float* noise)                                                     // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetSimplexFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_Cellular3(
-    float m_frequency,                                        // |
-    int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    int m_seed,                                               // |
-
-    ulong size_x, ulong size_y, ulong size_z,                 // |
-    float scale_x, float scale_y, float scale_z,              // | IN : Parameters
-    float offset_x, float offset_y, float offset_z,           // |
-
-    __global float* noise)                                    // OUT : Noise matrix
-{
-    // Get Indexes
-    size_t index = get_global_id(0);
-    size_t k = index / (size_x * size_y);
-    size_t i = (index - k * size_x * size_y) / size_x;
-    size_t j = index - k * size_x * size_y - i * size_x;
-
-    //Calculate value
-    noise[index] = GetCellular3(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
-}
-__kernel void GEN_WhiteNoise3(
-    int m_seed,                                     // IN : class members
+    Snapshot param,                                 // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z,       // |
     float scale_x, float scale_y, float scale_z,    // | IN : Parameters
@@ -2376,15 +2410,31 @@ __kernel void GEN_WhiteNoise3(
     size_t i = (index - k * size_x * size_y) / size_x;
     size_t j = index - k * size_x * size_y - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetWhiteNoise3(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+    noise[index] = GetValueFractal3(param.m_frequency, param.m_fractalType, param.m_lacunarity, param.m_gain, param.m_octaves, param.m_fractalBounding, param.m_interp, param.m_seed, x, y, z);
 }
-__kernel void GEN_WhiteNoiseInt3(
-    int m_seed,                                     // IN : class members
+__kernel void GEN_Perlin3(
+    Snapshot param,                                 // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z,       // |
-    int scale_x, int scale_y, int scale_z,          // | IN : Parameters
-    int offset_x, int offset_y, int offset_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
 
     __global float* noise)                          // OUT : Noise matrix
 {
@@ -2394,15 +2444,234 @@ __kernel void GEN_WhiteNoiseInt3(
     size_t i = (index - k * size_x * size_y) / size_x;
     size_t j = index - k * size_x * size_y - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
     //Calculate value
-    noise[index] = GetWhiteNoiseInt3(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+    noise[index] = GetPerlin3(param.m_frequency, param.m_interp, param.m_seed, x, y, z);
+}
+__kernel void GEN_PerlinFractal3(
+    Snapshot param,                                 // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
+
+    __global float* noise)                          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetPerlinFractal3(param.m_frequency, param.m_fractalType, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_fractalBounding, param.m_interp, param.m_seed, x, y, z);
+}
+__kernel void GEN_Simplex3(
+    Snapshot param,                                 // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
+
+    __global float* noise)                          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetSimplex3(param.m_frequency, param.m_seed, x, y, z);
+}
+__kernel void GEN_SimplexFractal3(
+    Snapshot param,                                 // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
+
+    __global float* noise)                          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetSimplexFractal3(param.m_frequency, param.m_fractalType, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_fractalBounding, param.m_seed, x, y, z);
+}
+__kernel void GEN_Cellular3(
+    Snapshot param,                                 // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
+
+    __global float* noise)                          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetCellular3(param.m_frequency, param.m_cellularDistanceFunction, param.m_cellularReturnType, param.m_seed, x, y, z);
+}
+__kernel void GEN_WhiteNoise3(
+    Snapshot param,                                 // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
+
+    __global float* noise)                          // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetWhiteNoise3(param.m_seed, x, y, z);
+}
+__kernel void GEN_WhiteNoiseInt3(
+    Snapshot param,                           // IN : class members
+
+    ulong size_x, ulong size_y, ulong size_z, // |
+    int scale_x, int scale_y, int scale_z,    // | IN : Parameters
+    int offset_x, int offset_y, int offset_z, // |
+
+    __global float* noise)                    // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+
+    switch(param.m_perturb) {
+    case 1:
+        Perturb3(param.m_perturbAmp, param.m_frequency, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    case 2:
+        PerturbFractal3(param.m_perturbAmp, param.m_fractalBounding, param.m_frequency, param.m_octaves, param.m_lacunarity, param.m_gain, param.m_interp, param.m_seed, &x, &y, &z);
+        break;
+    default:
+        break;
+    }
+
+    //Calculate value
+    noise[index] = GetWhiteNoiseInt3(param.m_seed, FastFloor(x), FastFloor(y), FastFloor(z));
 }
 //__kernel void GEN_Noise3();
 
 //4D
 __kernel void GEN_Simplex4(
-    float m_frequency,                                              // |
-    int m_seed,                                                     // | IN : class members
+    Snapshot param,                                                 // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z, ulong size_w,         // |
     float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
@@ -2417,11 +2686,17 @@ __kernel void GEN_Simplex4(
     size_t i = (index - w * size_x * size_y * size_z - k * size_y * size_x) / size_x;
     size_t j = index - w * size_x * size_y * size_z - k * size_y * size_x - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+    float u = w * scale_w  + offset_w;
+
     //Calculate value
-    noise[index] = GetSimplex4(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
+    noise[index] = GetSimplex4(param.m_frequency, param.m_seed, x, y, z, u);
 }
 __kernel void GEN_WhiteNoise4(
-    int m_seed,                                                     // IN : class members
+    Snapshot param,                                                 // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z, ulong size_w,         // |
     float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
@@ -2436,11 +2711,17 @@ __kernel void GEN_WhiteNoise4(
     size_t i = (index - w * size_x * size_y * size_z - k * size_y * size_x) / size_x;
     size_t j = index - w * size_x * size_y * size_z - k * size_y * size_x - i * size_x;
 
+    // Calculate perturb
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y  + offset_y;
+    float z = k * scale_z  + offset_z;
+    float u = w * scale_w  + offset_w;
+
     //Calculate value
-    noise[index] = GetWhiteNoise4(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
+    noise[index] = GetWhiteNoise4(param.m_seed, x, y, z, u);
 }
 __kernel void GEN_WhiteNoiseInt4(
-    int m_seed,                                             // IN : class members
+    Snapshot param,                                         // IN : class members
 
     ulong size_x, ulong size_y, ulong size_z, ulong size_w, // |
     int scale_x, int scale_y, int scale_z, int scale_w,     // | IN : Parameters
@@ -2455,78 +2736,15 @@ __kernel void GEN_WhiteNoiseInt4(
     size_t i = (index - w * size_x * size_y * size_z - k * size_y * size_x) / size_x;
     size_t j = index - w * size_x * size_y * size_z - k * size_y * size_x - i * size_x;
 
+    // Calculate perturb
+    int x = i * scale_x + offset_x;
+    int y = j * scale_y  + offset_y;
+    int z = k * scale_z  + offset_z;
+    int u = w * scale_w  + offset_w;
+
     //Calculate value
-    noise[index] = GetWhiteNoiseInt4(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
+    noise[index] = GetWhiteNoiseInt4(param.m_seed, x, y, z, u);
 }
-
-/*//Perturb
-//2D
-__kernel void DO_Perturb2(
-    float m_perturbAmp, float m_frequency,        // |
-    int m_interp,                                 // | IN : class members
-    __global uchar* m_perm,                       // |
-
-    ulong size_m,                                 // IN : Parameters
-
-    __global float* arr_x, __global float* arr_y) // IN-OUT : Noise matrices
-{
-    // Get Indexes
-    size_t i = get_global_id(0);
-
-    //Apply perturb
-    Perturb2(m_perturbAmp, m_frequency, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]));
-
-}
-
-__kernel void DO_PerturbFractal2(
-    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
-    int m_interp,                                                                                                    // | IN : class members
-    __global uchar* m_perm,                                                                                          // |
-
-    ulong size_m,                                                                                                    // IN : Parameters
-
-    __global float* arr_x, __global float* arr_y)                                                                    // IN-OUT : Noise matrices
-{
-    // Get Indexes
-    size_t i = get_global_id(0);
-
-    //Apply perturb
-    PerturbFractal2(m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]));
-}
-
-//3D
-__kernel void DO_Perturb3(
-    float m_perturbAmp, float m_frequency,                               // |
-    int m_interp,                                                        // | IN : class members
-    __global uchar* m_perm,                                              // |
-
-    ulong size_m,                                                        // IN : Parameters
-
-    __global float* arr_x, __global float* arr_y, __global float* arr_z) // IN-OUT : Noise matrices
-{
-    // Get Indexes
-    size_t i = get_global_id(0);
-
-    //Apply perturb
-    Perturb3(m_perturbAmp, m_frequency, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]), &(arr_z[i]));
-
-}
-
-__kernel void DO_PerturbFractal3(
-    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
-    int m_interp,                                                                                                    // | IN : class members
-    __global uchar* m_perm,                                                                                          // |
-
-    ulong size_m,                                                                                                    // IN : Parameters
-
-    __global float* arr_x, __global float* arr_y, __global float* arr_z)                                             // IN-OUT : Noise matrices
-{
-    // Get Indexes
-    size_t i = get_global_id(0);
-
-    //Apply perturb
-    PerturbFractal3(m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]), &(arr_z[i]));
-}*/
 
 
 /*//NoiseLookup

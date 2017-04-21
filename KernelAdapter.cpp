@@ -110,11 +110,7 @@ const char* kernel_names[KERNEL_COUNT] = {
     "GEN_WhiteNoiseInt3",
     "GEN_Simplex4",
     "GEN_WhiteNoise4",
-    "GEN_WhiteNoiseInt4"/*,
-    "DO_Perturb2",
-    "DO_PerturbFractal2",
-    "DO_Perturb3",
-    "DO_PerturbFractal3"*/
+    "GEN_WhiteNoiseInt4"
 };
 enum Kernel {
     VALUE2 = 0,
@@ -137,11 +133,7 @@ enum Kernel {
     WHITENOISEINT3 = 17,
     SIMPLEX4 = 18,
     WHITENOISE4 = 19,
-    WHITENOISEINT4 = 20/*,
-    PERTURB2 = 21,
-    PERTURBFRACTAL2 = 22,
-    PERTURB3 = 23,
-    PERTURBFRACTAL3 = 24*/
+    WHITENOISEINT4 = 20
 };
 
 //Initialize
@@ -177,343 +169,38 @@ KernelAdapter::KernelAdapter(Device& dev) : pimpl( new impl) {
 KernelAdapter::~KernelAdapter() {}
 
 //Kernels
-//2D
-float* KernelAdapter::GEN_Value2(
-    float m_frequency,              // |
-    int m_interp,                   // | IN : class members
-    int m_seed,                     // |
+
+template <typename T>
+float* exec_kernel_2D(
+    cl::Kernel& kernel,             // |
+    cl::Context& context,           // | IN : KernelAdapter::impl
+    cl::Device& device,             // |
+
+    Snapshot param,                 // IN : class members
 
     size_t size_x, size_t size_y,   // |
-    float scale_x, float scale_y,   // | IN : Parameters
-    float offset_x, float offset_y  // |
+    T scale_x, T scale_y,           // | IN : Parameters
+    T offset_x, T offset_y          // |
 ) {
     //Configure stuff
     cl_int err;
     size_t msize = size_x * size_y;
 
     //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[VALUE2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
+    cl::CommandQueue cmd_queue(context, device);
 
     //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_interp);
-    kernel.setArg(2, sizeof(int), &m_seed);
-    kernel.setArg(3, sizeof(size_t), &size_x);
-    kernel.setArg(4, sizeof(size_t), &size_y);
-    kernel.setArg(5, sizeof(float), &scale_x);
-    kernel.setArg(6, sizeof(float), &scale_y);
-    kernel.setArg(7, sizeof(float), &offset_x);
-    kernel.setArg(8, sizeof(float), &offset_y);
-    kernel.setArg(9, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_ValueFractal2(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y,                                              // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y                                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_fractalType);
-    kernel.setArg(1, sizeof(float), &m_frequency);
-    kernel.setArg(2, sizeof(float), &m_lacunarity);
-    kernel.setArg(3, sizeof(float), &m_gain);
-    kernel.setArg(4, sizeof(int), &m_octaves);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, sizeof(int), &m_seed);
-    kernel.setArg(8, sizeof(size_t), &size_x);
-    kernel.setArg(9, sizeof(size_t), &size_y);
-    kernel.setArg(10, sizeof(float), &scale_x);
-    kernel.setArg(11, sizeof(float), &scale_y);
-    kernel.setArg(12, sizeof(float), &offset_x);
-    kernel.setArg(13, sizeof(float), &offset_y);
-    kernel.setArg(14, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Perlin2(
-    float m_frequency,                                // |
-    int m_interp,                                     // | IN : class members
-    int m_seed,                                       // |
-
-    size_t size_x, size_t size_y,                     // |
-    float scale_x, float scale_y,                     // | IN : Parameters
-    float offset_x, float offset_y                    // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERLIN2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_interp);
-    kernel.setArg(2, sizeof(int), &m_seed);
-    kernel.setArg(3, sizeof(size_t), &size_x);
-    kernel.setArg(4, sizeof(size_t), &size_y);
-    kernel.setArg(5, sizeof(float), &scale_x);
-    kernel.setArg(6, sizeof(float), &scale_y);
-    kernel.setArg(7, sizeof(float), &offset_x);
-    kernel.setArg(8, sizeof(float), &offset_y);
-    kernel.setArg(9, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_PerlinFractal2(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y,                                              // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y                                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_fractalType);
-    kernel.setArg(2, sizeof(int), &m_octaves);
-    kernel.setArg(3, sizeof(float), &m_lacunarity);
-    kernel.setArg(4, sizeof(float), &m_gain);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, sizeof(int), &m_seed);
-    kernel.setArg(8, sizeof(size_t), &size_x);
-    kernel.setArg(9, sizeof(size_t), &size_y);
-    kernel.setArg(10, sizeof(float), &scale_x);
-    kernel.setArg(11, sizeof(float), &scale_y);
-    kernel.setArg(12, sizeof(float), &offset_x);
-    kernel.setArg(13, sizeof(float), &offset_y);
-    kernel.setArg(14, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Simplex2(
-    float m_frequency,                                // |
-    int m_seed,                                       // | IN : class members
-
-    size_t size_x, size_t size_y,                     // |
-    float scale_x, float scale_y,                     // | IN : Parameters
-    float offset_x, float offset_y                    // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[SIMPLEX2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_seed);
-    kernel.setArg(2, sizeof(size_t), &size_x);
-    kernel.setArg(3, sizeof(size_t), &size_y);
-    kernel.setArg(4, sizeof(float), &scale_x);
-    kernel.setArg(5, sizeof(float), &scale_y);
-    kernel.setArg(6, sizeof(float), &offset_x);
-    kernel.setArg(7, sizeof(float), &offset_y);
-    kernel.setArg(8, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_SimplexFractal2(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y,                                              // |
-    float scale_x, float scale_y,                                              // | IN : Parameters
-    float offset_x, float offset_y                                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_fractalType);
-    kernel.setArg(2, sizeof(int), &m_octaves);
-    kernel.setArg(3, sizeof(float), &m_lacunarity);
-    kernel.setArg(4, sizeof(float), &m_gain);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_seed);
-    kernel.setArg(7, sizeof(size_t), &size_x);
-    kernel.setArg(8, sizeof(size_t), &size_y);
-    kernel.setArg(9, sizeof(float), &scale_x);
-    kernel.setArg(10, sizeof(float), &scale_y);
-    kernel.setArg(11, sizeof(float), &offset_x);
-    kernel.setArg(12, sizeof(float), &offset_y);
-    kernel.setArg(13, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Cellular2(
-    float m_frequency,                                        // |
-    int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    int m_seed,                                               // |
-
-    size_t size_x, size_t size_y,                             // |
-    float scale_x, float scale_y,                             // | IN : Parameters
-    float offset_x, float offset_y                            // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[CELLULAR2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_cellularDistanceFunction);
-    kernel.setArg(2, sizeof(int), &m_cellularReturnType);
-    kernel.setArg(3, sizeof(int), &m_seed);
-    kernel.setArg(4, sizeof(size_t), &size_x);
-    kernel.setArg(5, sizeof(size_t), &size_y);
-    kernel.setArg(6, sizeof(float), &scale_x);
-    kernel.setArg(7, sizeof(float), &scale_y);
-    kernel.setArg(8, sizeof(float), &offset_x);
-    kernel.setArg(9, sizeof(float), &offset_y);
-    kernel.setArg(10, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_WhiteNoise2(
-    int m_seed,                     // IN : class members
-
-    size_t size_x, size_t size_y,   // |
-    float scale_x, float scale_y,   // | IN : Parameters
-    float offset_x, float offset_y  // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[WHITENOISE2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
+    kernel.setArg(0, sizeof(Snapshot), &param);
     kernel.setArg(1, sizeof(size_t), &size_x);
     kernel.setArg(2, sizeof(size_t), &size_y);
-    kernel.setArg(3, sizeof(float), &scale_x);
-    kernel.setArg(4, sizeof(float), &scale_y);
-    kernel.setArg(5, sizeof(float), &offset_x);
-    kernel.setArg(6, sizeof(float), &offset_y);
+    kernel.setArg(3, sizeof(T), &scale_x);
+    kernel.setArg(4, sizeof(T), &scale_y);
+    kernel.setArg(5, sizeof(T), &offset_x);
+    kernel.setArg(6, sizeof(T), &offset_y);
     kernel.setArg(7, buf_result);
 
     //Execute task
@@ -525,406 +212,40 @@ float* KernelAdapter::GEN_WhiteNoise2(
 
     return result;
 }
-float* KernelAdapter::GEN_WhiteNoiseInt2(
-    int m_seed,                     // IN : class members
+template <typename T>
+float* exec_kernel_3D(
+    cl::Kernel& kernel,                             // |
+    cl::Context& context,                           // | IN : KernelAdapter::impl
+    cl::Device& device,                             // |
 
-    size_t size_x, size_t size_y,   // |
-    int scale_x, int scale_y,       // | IN : Parameters
-    int offset_x, int offset_y      // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
-    kernel.setArg(1, sizeof(size_t), &size_x);
-    kernel.setArg(2, sizeof(size_t), &size_y);
-    kernel.setArg(3, sizeof(int), &scale_x);
-    kernel.setArg(4, sizeof(int), &scale_y);
-    kernel.setArg(5, sizeof(int), &offset_x);
-    kernel.setArg(6, sizeof(int), &offset_y);
-    kernel.setArg(7, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-
-//3D
-float* KernelAdapter::GEN_Value3(
-    float m_frequency,                              // |
-    int m_interp,                                   // | IN : class members
-    int m_seed,                                     // |
+    Snapshot param,                                 // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z,    // |
-    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
-    float offset_x, float offset_y, float offset_z  // |
+    T scale_x, T scale_y, T scale_z,                // | IN : Parameters
+    T offset_x, T offset_y, T offset_z              // |
 ) {
     //Configure stuff
     cl_int err;
     size_t msize = size_x * size_y * size_z;
 
     //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[VALUE3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
+    cl::CommandQueue cmd_queue(context, device);
 
     //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_interp);
-    kernel.setArg(2, sizeof(int), &m_seed);
-    kernel.setArg(3, sizeof(size_t), &size_x);
-    kernel.setArg(4, sizeof(size_t), &size_y);
-    kernel.setArg(5, sizeof(size_t), &size_z);
-    kernel.setArg(6, sizeof(float), &scale_x);
-    kernel.setArg(7, sizeof(float), &scale_y);
-    kernel.setArg(8, sizeof(float), &scale_z);
-    kernel.setArg(9, sizeof(float), &offset_x);
-    kernel.setArg(10, sizeof(float), &offset_y);
-    kernel.setArg(11, sizeof(float), &offset_z);
-    kernel.setArg(12, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_ValueFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y, size_t size_z,                               // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_fractalType);
-    kernel.setArg(2, sizeof(float), &m_lacunarity);
-    kernel.setArg(3, sizeof(float), &m_gain);
-    kernel.setArg(4, sizeof(int), &m_octaves);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, sizeof(int), &m_seed);
-    kernel.setArg(8, sizeof(size_t), &size_x);
-    kernel.setArg(9, sizeof(size_t), &size_y);
-    kernel.setArg(10, sizeof(size_t), &size_z);
-    kernel.setArg(11, sizeof(float), &scale_x);
-    kernel.setArg(12, sizeof(float), &scale_y);
-    kernel.setArg(13, sizeof(float), &scale_z);
-    kernel.setArg(14, sizeof(float), &offset_x);
-    kernel.setArg(15, sizeof(float), &offset_y);
-    kernel.setArg(16, sizeof(float), &offset_z);
-    kernel.setArg(17, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Perlin3(
-    float m_frequency,                                // |
-    int m_interp,                                     // | IN : class members
-    int m_seed,                                       // |
-
-    size_t size_x, size_t size_y, size_t size_z,      // |
-    float scale_x, float scale_y, float scale_z,      // | IN : Parameters
-    float offset_x, float offset_y, float offset_z    // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERLIN3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_interp);
-    kernel.setArg(2, sizeof(int), &m_seed);
-    kernel.setArg(3, sizeof(size_t), &size_x);
-    kernel.setArg(4, sizeof(size_t), &size_y);
-    kernel.setArg(5, sizeof(size_t), &size_z);
-    kernel.setArg(6, sizeof(float), &scale_x);
-    kernel.setArg(7, sizeof(float), &scale_y);
-    kernel.setArg(8, sizeof(float), &scale_z);
-    kernel.setArg(9, sizeof(float), &offset_x);
-    kernel.setArg(10, sizeof(float), &offset_y);
-    kernel.setArg(11, sizeof(float), &offset_z);
-    kernel.setArg(12, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_PerlinFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
-    int m_interp,                                                              // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y, size_t size_z,                               // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_fractalType);
-    kernel.setArg(2, sizeof(int), &m_octaves);
-    kernel.setArg(3, sizeof(float), &m_lacunarity);
-    kernel.setArg(4, sizeof(float), &m_gain);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, sizeof(int), &m_seed);
-    kernel.setArg(8, sizeof(size_t), &size_x);
-    kernel.setArg(9, sizeof(size_t), &size_y);
-    kernel.setArg(10, sizeof(size_t), &size_z);
-    kernel.setArg(11, sizeof(float), &scale_x);
-    kernel.setArg(12, sizeof(float), &scale_y);
-    kernel.setArg(13, sizeof(float), &scale_z);
-    kernel.setArg(14, sizeof(float), &offset_x);
-    kernel.setArg(15, sizeof(float), &offset_y);
-    kernel.setArg(16, sizeof(float), &offset_z);
-    kernel.setArg(17, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Simplex3(
-    float m_frequency,                                // |
-    int m_seed,                                       // | IN : class members
-
-    size_t size_x, size_t size_y, size_t size_z,      // |
-    float scale_x, float scale_y, float scale_z,      // | IN : Parameters
-    float offset_x, float offset_y, float offset_z    // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[SIMPLEX3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_seed);
-    kernel.setArg(2, sizeof(size_t), &size_x);
-    kernel.setArg(3, sizeof(size_t), &size_y);
-    kernel.setArg(4, sizeof(size_t), &size_z);
-    kernel.setArg(5, sizeof(float), &scale_x);
-    kernel.setArg(6, sizeof(float), &scale_y);
-    kernel.setArg(7, sizeof(float), &scale_z);
-    kernel.setArg(8, sizeof(float), &offset_x);
-    kernel.setArg(9, sizeof(float), &offset_y);
-    kernel.setArg(10, sizeof(float), &offset_z);
-    kernel.setArg(11, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_SimplexFractal3(
-    float m_frequency, int m_fractalType,                                      // |
-    int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    int m_seed,                                                                // |
-
-    size_t size_x, size_t size_y, size_t size_z,                               // |
-    float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
-    float offset_x, float offset_y, float offset_z                             // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_fractalType);
-    kernel.setArg(2, sizeof(int), &m_octaves);
-    kernel.setArg(3, sizeof(float), &m_lacunarity);
-    kernel.setArg(4, sizeof(float), &m_gain);
-    kernel.setArg(5, sizeof(float), &m_fractalBounding);
-    kernel.setArg(6, sizeof(int), &m_seed);
-    kernel.setArg(7, sizeof(size_t), &size_x);
-    kernel.setArg(8, sizeof(size_t), &size_y);
-    kernel.setArg(9, sizeof(size_t), &size_z);
-    kernel.setArg(10, sizeof(float), &scale_x);
-    kernel.setArg(11, sizeof(float), &scale_y);
-    kernel.setArg(12, sizeof(float), &scale_z);
-    kernel.setArg(13, sizeof(float), &offset_x);
-    kernel.setArg(14, sizeof(float), &offset_y);
-    kernel.setArg(15, sizeof(float), &offset_z);
-    kernel.setArg(16, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_Cellular3(
-    float m_frequency,                                        // |
-    int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    int m_seed,                                               // |
-
-    size_t size_x, size_t size_y, size_t size_z,              // |
-    float scale_x, float scale_y, float scale_z,              // | IN : Parameters
-    float offset_x, float offset_y, float offset_z            // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[CELLULAR3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(1, sizeof(int), &m_cellularDistanceFunction);
-    kernel.setArg(2, sizeof(int), &m_cellularReturnType);
-    kernel.setArg(3, sizeof(int), &m_seed);
-    kernel.setArg(4, sizeof(size_t), &size_x);
-    kernel.setArg(5, sizeof(size_t), &size_y);
-    kernel.setArg(6, sizeof(size_t), &size_z);
-    kernel.setArg(7, sizeof(float), &scale_x);
-    kernel.setArg(8, sizeof(float), &scale_y);
-    kernel.setArg(9, sizeof(float), &scale_z);
-    kernel.setArg(10, sizeof(float), &offset_x);
-    kernel.setArg(11, sizeof(float), &offset_y);
-    kernel.setArg(12, sizeof(float), &offset_z);
-    kernel.setArg(13, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_WhiteNoise3(
-    int m_seed,                                     // IN : class members
-
-    size_t size_x, size_t size_y, size_t size_z,    // |
-    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
-    float offset_x, float offset_y, float offset_z  // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[WHITENOISE3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
+    kernel.setArg(0, sizeof(Snapshot), &param);
     kernel.setArg(1, sizeof(size_t), &size_x);
     kernel.setArg(2, sizeof(size_t), &size_y);
     kernel.setArg(3, sizeof(size_t), &size_z);
-    kernel.setArg(4, sizeof(float), &scale_x);
-    kernel.setArg(5, sizeof(float), &scale_y);
-    kernel.setArg(6, sizeof(float), &scale_z);
-    kernel.setArg(7, sizeof(float), &offset_x);
-    kernel.setArg(8, sizeof(float), &offset_y);
-    kernel.setArg(9, sizeof(float), &offset_z);
+    kernel.setArg(4, sizeof(T), &scale_x);
+    kernel.setArg(5, sizeof(T), &scale_y);
+    kernel.setArg(6, sizeof(T), &scale_z);
+    kernel.setArg(7, sizeof(T), &offset_x);
+    kernel.setArg(8, sizeof(T), &offset_y);
+    kernel.setArg(9, sizeof(T), &offset_z);
     kernel.setArg(10, buf_result);
 
     //Execute task
@@ -936,116 +257,31 @@ float* KernelAdapter::GEN_WhiteNoise3(
 
     return result;
 }
-float* KernelAdapter::GEN_WhiteNoiseInt3(
-    int m_seed,                                     // IN : class members
+template <typename T>
+float* exec_kernel_4D(
+    cl::Kernel& kernel,                                             // |
+    cl::Context& context,                                           // | IN : KernelAdapter::impl
+    cl::Device& device,                                             // |
 
-    size_t size_x, size_t size_y, size_t size_z,    // |
-    int scale_x, int scale_y, int scale_z,          // | IN : Parameters
-    int offset_x, int offset_y, int offset_z        // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
-    kernel.setArg(1, sizeof(size_t), &size_x);
-    kernel.setArg(2, sizeof(size_t), &size_y);
-    kernel.setArg(3, sizeof(size_t), &size_z);
-    kernel.setArg(4, sizeof(int), &scale_x);
-    kernel.setArg(5, sizeof(int), &scale_y);
-    kernel.setArg(6, sizeof(int), &scale_z);
-    kernel.setArg(7, sizeof(int), &offset_x);
-    kernel.setArg(8, sizeof(int), &offset_y);
-    kernel.setArg(9, sizeof(int), &offset_z);
-    kernel.setArg(10, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-
-//4D
-float* KernelAdapter::GEN_Simplex4(
-    float m_frequency,                                              // |
-    int m_seed,                                               // | IN : class members
+    Snapshot param,                                                 // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z, size_t size_w,     // |
-    float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
-    float offset_x, float offset_y, float offset_z, float offset_w  // |
+    T scale_x, T scale_y, T scale_z, T scale_w,                     // | IN : Parameters
+    T offset_x, T offset_y, T offset_z, T offset_w                  // |
 ) {
     //Configure stuff
     cl_int err;
     size_t msize = size_x * size_y * size_z * size_w;
 
     //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[SIMPLEX4]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
+    cl::CommandQueue cmd_queue(context, device);
 
     //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    cl::Buffer buf_result(context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
     assert(err == CL_SUCCESS);
 
     //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_frequency);
-    kernel.setArg(0, sizeof(int), &m_seed);
-    kernel.setArg(2, sizeof(size_t), &size_x);
-    kernel.setArg(3, sizeof(size_t), &size_y);
-    kernel.setArg(4, sizeof(size_t), &size_z);
-    kernel.setArg(5, sizeof(size_t), &size_w);
-    kernel.setArg(6, sizeof(float), &scale_x);
-    kernel.setArg(7, sizeof(float), &scale_y);
-    kernel.setArg(8, sizeof(float), &scale_z);
-    kernel.setArg(9, sizeof(float), &scale_w);
-    kernel.setArg(10, sizeof(float), &offset_x);
-    kernel.setArg(11, sizeof(float), &offset_y);
-    kernel.setArg(12, sizeof(float), &offset_z);
-    kernel.setArg(13, sizeof(float), &offset_w);
-    kernel.setArg(14, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
-}
-float* KernelAdapter::GEN_WhiteNoise4(
-    int m_seed,                                                     // IN : class members
-
-    size_t size_x, size_t size_y, size_t size_z, size_t size_w,     // |
-    float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
-    float offset_x, float offset_y, float offset_z, float offset_w  // |
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[WHITENOISE4]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
+    kernel.setArg(0, sizeof(Snapshot), &param);
     kernel.setArg(1, sizeof(size_t), &size_x);
     kernel.setArg(2, sizeof(size_t), &size_y);
     kernel.setArg(3, sizeof(size_t), &size_z);
@@ -1069,238 +305,219 @@ float* KernelAdapter::GEN_WhiteNoise4(
 
     return result;
 }
+
+//2D
+float* KernelAdapter::GEN_Value2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[VALUE2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_ValueFractal2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_Perlin2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[PERLIN2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_PerlinFractal2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_Simplex2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_SimplexFractal2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_Cellular2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[CELLULAR2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_WhiteNoise2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    float scale_x, float scale_y,   // | IN : Parameters
+    float offset_x, float offset_y  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE2]);
+    return exec_kernel_2D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+float* KernelAdapter::GEN_WhiteNoiseInt2(
+    Snapshot param,                 // IN : class members
+
+    size_t size_x, size_t size_y,   // |
+    int scale_x, int scale_y,       // | IN : Parameters
+    int offset_x, int offset_y      // |
+) {
+    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT2]);
+    return exec_kernel_2D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, scale_x, scale_y, offset_x, offset_y);
+}
+
+//3D
+float* KernelAdapter::GEN_Value3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[VALUE3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_ValueFractal3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[VALUEFRACTAL3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_Perlin3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[PERLIN3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_PerlinFractal3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[PERLINFRACTAL3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_Simplex3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_SimplexFractal3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[SIMPLEXFRACTAL3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_Cellular3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[CELLULAR3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_WhiteNoise3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE3]);
+    return exec_kernel_3D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+float* KernelAdapter::GEN_WhiteNoiseInt3(
+    Snapshot param,                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z,    // |
+    int scale_x, int scale_y, int scale_z,          // | IN : Parameters
+    int offset_x, int offset_y, int offset_z        // |
+) {
+    cl::Kernel kernel(pimpl->kernels[WHITENOISEINT3]);
+    return exec_kernel_3D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, scale_x, scale_y, scale_z, offset_x, offset_y, offset_z);
+}
+
+//4D
+float* KernelAdapter::GEN_Simplex4(
+    Snapshot param,                                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z, size_t size_w,     // |
+    float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, float offset_w  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[SIMPLEX4]);
+    return exec_kernel_4D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
+}
+float* KernelAdapter::GEN_WhiteNoise4(
+    Snapshot param,                                                 // IN : class members
+
+    size_t size_x, size_t size_y, size_t size_z, size_t size_w,     // |
+    float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, float offset_w  // |
+) {
+    cl::Kernel kernel(pimpl->kernels[WHITENOISE4]);
+    return exec_kernel_4D<float>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
+}
 float* KernelAdapter::GEN_WhiteNoiseInt4(
-    int m_seed,                                                 // IN : class members
+    Snapshot param,                                                 // IN : class members
 
     size_t size_x, size_t size_y, size_t size_z, size_t size_w, // |
     int scale_x, int scale_y, int scale_z, int scale_w,         // | IN : Parameters
     int offset_x, int offset_y, int offset_z, int offset_w      // |
 ) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_x * size_y * size_z * size_w;
-
-    //Get CL objects
     cl::Kernel kernel(pimpl->kernels[WHITENOISEINT4]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(int), &m_seed);
-    kernel.setArg(1, sizeof(size_t), &size_x);
-    kernel.setArg(2, sizeof(size_t), &size_y);
-    kernel.setArg(3, sizeof(size_t), &size_z);
-    kernel.setArg(4, sizeof(size_t), &size_w);
-    kernel.setArg(5, sizeof(int), &scale_x);
-    kernel.setArg(6, sizeof(int), &scale_y);
-    kernel.setArg(7, sizeof(int), &scale_z);
-    kernel.setArg(8, sizeof(int), &scale_w);
-    kernel.setArg(9, sizeof(int), &offset_x);
-    kernel.setArg(10, sizeof(int), &offset_y);
-    kernel.setArg(11, sizeof(int), &offset_z);
-    kernel.setArg(12, sizeof(int), &offset_w);
-    kernel.setArg(13, buf_result);
-
-    //Execute task
-    float* result = new float[msize];
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
-    assert(err == CL_SUCCESS);
-
-    return result;
+    return exec_kernel_4D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
 }
-
-/*//Perturb
-//2D
-void KernelAdapter::DO_Perturb2(
-    float m_perturbAmp, float m_frequency,        // |
-    int m_interp,                                 // | IN : class members
-    uchar* m_perm,                                // |
-
-    size_t size_m,                                // IN : Parameters
-
-    float* arr_x, float* arr_y                    // IN-OUT : Noise matrices
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_m;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERTURB2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_x(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_x, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_y(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_y, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_perturbAmp);
-    kernel.setArg(1, sizeof(float), &m_frequency);
-    kernel.setArg(2, sizeof(int), &m_interp);
-    kernel.setArg(3, buf_m_perm);
-    kernel.setArg(4, sizeof(size_t), &size_m);
-    kernel.setArg(5, buf_arr_x);
-    kernel.setArg(6, buf_arr_y);
-
-    //Execute task
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_x, CL_TRUE, 0, sizeof(float) * msize, arr_x);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_y, CL_TRUE, 0, sizeof(float) * msize, arr_y);
-    assert(err == CL_SUCCESS);
-}
-void KernelAdapter::DO_PerturbFractal2(
-    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
-    int m_interp,                                                                                                    // | IN : class members
-    uchar* m_perm,                                                                                                   // |
-
-    size_t size_m,                                                                                                   // IN : Parameters
-
-    float* arr_x, float* arr_y                                                                                       // IN-OUT : Noise matrices
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_m;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERTURBFRACTAL2]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_x(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_x, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_y(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_y, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_perturbAmp);
-    kernel.setArg(1, sizeof(float), &m_fractalBounding);
-    kernel.setArg(2, sizeof(float), &m_frequency);
-    kernel.setArg(3, sizeof(int), &m_octaves);
-    kernel.setArg(4, sizeof(float), &m_lacunarity);
-    kernel.setArg(5, sizeof(float), &m_gain);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, buf_m_perm);
-    kernel.setArg(8, sizeof(size_t), &size_m);
-    kernel.setArg(9, buf_arr_x);
-    kernel.setArg(10, buf_arr_y);
-
-    //Execute task
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_x, CL_TRUE, 0, sizeof(float) * msize, arr_x);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_y, CL_TRUE, 0, sizeof(float) * msize, arr_y);
-    assert(err == CL_SUCCESS);
-}
-
-//3D
-void KernelAdapter::DO_Perturb3(
-    float m_perturbAmp, float m_frequency,        // |
-    int m_interp,                                 // | IN : class members
-    uchar* m_perm,                                // |
-
-    size_t size_m,                                // IN : Parameters
-
-    float* arr_x, float* arr_y, float* arr_z      // IN-OUT : Noise matrices
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_m;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERTURB3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_x(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_x, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_y(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_y, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_z(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_z, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_perturbAmp);
-    kernel.setArg(1, sizeof(float), &m_frequency);
-    kernel.setArg(2, sizeof(int), &m_interp);
-    kernel.setArg(3, buf_m_perm);
-    kernel.setArg(4, sizeof(size_t), &size_m);
-    kernel.setArg(5, buf_arr_x);
-    kernel.setArg(6, buf_arr_y);
-    kernel.setArg(7, buf_arr_y);
-
-    //Execute task
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_x, CL_TRUE, 0, sizeof(float) * msize, arr_x);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_y, CL_TRUE, 0, sizeof(float) * msize, arr_y);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_z, CL_TRUE, 0, sizeof(float) * msize, arr_z);
-    assert(err == CL_SUCCESS);
-}
-void KernelAdapter::DO_PerturbFractal3(
-    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
-    int m_interp,                                                                                                    // | IN : class members
-    uchar* m_perm,                                                                                                   // |
-
-    size_t size_m,                                                                                                   // IN : Parameters
-
-    float* arr_x, float* arr_y, float* arr_z                                                                         // IN-OUT : Noise matrices
-) {
-    //Configure stuff
-    cl_int err;
-    size_t msize = size_m;
-
-    //Get CL objects
-    cl::Kernel kernel(pimpl->kernels[PERTURBFRACTAL3]);
-    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
-
-    //Create buffers
-    cl::Buffer buf_m_perm(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(cl_uchar) * 512, m_perm, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_x(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_x, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_y(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_y, &err);
-    assert(err == CL_SUCCESS);
-    cl::Buffer buf_arr_z(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, arr_z, &err);
-    assert(err == CL_SUCCESS);
-
-    //Prepare kernel
-    kernel.setArg(0, sizeof(float), &m_perturbAmp);
-    kernel.setArg(1, sizeof(float), &m_fractalBounding);
-    kernel.setArg(2, sizeof(float), &m_frequency);
-    kernel.setArg(3, sizeof(int), &m_octaves);
-    kernel.setArg(4, sizeof(float), &m_lacunarity);
-    kernel.setArg(5, sizeof(float), &m_gain);
-    kernel.setArg(6, sizeof(int), &m_interp);
-    kernel.setArg(7, buf_m_perm);
-    kernel.setArg(8, sizeof(size_t), &size_m);
-    kernel.setArg(9, buf_arr_x);
-    kernel.setArg(10, buf_arr_y);
-    kernel.setArg(11, buf_arr_z);
-
-    //Execute task
-    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_x, CL_TRUE, 0, sizeof(float) * msize, arr_x);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_y, CL_TRUE, 0, sizeof(float) * msize, arr_y);
-    assert(err == CL_SUCCESS);
-    err = cmd_queue.enqueueReadBuffer(buf_arr_z, CL_TRUE, 0, sizeof(float) * msize, arr_z);
-    assert(err == CL_SUCCESS);
-}*/
