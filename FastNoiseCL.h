@@ -73,63 +73,89 @@ public:
 	enum FractalType { FBM, Billow, RigidMulti };
 	enum CellularDistanceFunction { Euclidean, Manhattan, Natural };
 	enum CellularReturnType { CellValue, NoiseLookup, Distance, Distance2, Distance2Add, Distance2Sub, Distance2Mul, Distance2Div };
+	enum PerturbType { None, Single, Fractal };
 
-	// Returns seed used for all noise types
+	//! \brief Returns seed used for all noise types
 	void SetSeed(int seed);
 
-	// Sets seed used for all noise types
-	// Default: 1337
+	/*! \brief Sets seed used for all noise types
+	 * Default: 1337
+	 */
 	int GetSeed(void) const { return m_seed; }
 
-	// Sets frequency for all noise types
-	// Default: 0.01
+	/*! \brief Sets frequency for all noise types
+	 * Default: 0.01
+	 */
 	void SetFrequency(float frequency) { m_frequency = frequency; }
 
-	// Changes the interpolation method used to smooth between noise values
-	// Possible interpolation methods (lowest to highest quality) :
-	// - Linear
-	// - Hermite
-	// - Quintic
-	// Used in Value, Perlin Noise and Position Warping
-	// Default: Quintic
+	/*! \brief Changes the interpolation method used to smooth between noise values
+	 * Used in Value, Perlin Noise and Position Warping
+	 * Default: Quintic
+     * \param Possible interpolation methods (lowest to highest quality) :
+	 * Linear, Hermite, Quintic.
+	 */
 	void SetInterp(Interp interp) { m_interp = interp; }
 
-	// Sets noise return type of GetNoise(...)
-	// Default: Simplex
+	/*! \brief Sets noise return type of GetNoise(...)
+	 * Default: Simplex
+	 * \param Possible noise types:
+	 * Perlin, PerlinFractal, Simplex, SimplexFractal, Cellular, WhiteNoise.
+	 */
 	void SetNoiseType(NoiseType noiseType) { m_noiseType = noiseType; }
 
-	// Sets octave count for all fractal noise types
-	// Default: 3
+	/*! \brief Sets octave count for all fractal noise types
+	 * Default: 3
+	 */
 	void SetFractalOctaves(int octaves) { m_octaves = octaves; CalculateFractalBounding(); }
 
-	// Sets octave lacunarity for all fractal noise types
-	// Default: 2.0
+	/*! \brief Sets octave lacunarity for all fractal noise types
+	 * Default: 2.0
+	 */
 	void SetFractalLacunarity(float lacunarity) { m_lacunarity = lacunarity; }
 
-	// Sets octave gain for all fractal noise types
-	// Default: 0.5
+	/*! \brief Sets octave gain for all fractal noise types
+	 * Default: 0.5
+	 */
 	void SetFractalGain(float gain) { m_gain = gain; CalculateFractalBounding(); }
 
-	// Sets method for combining octaves in all fractal noise types
-	// Default: FBM
+	/*! \brief Sets method for combining octaves in all fractal noise types
+	 * Default: FBM
+	 * \param Possible fractal types:
+	 * FBM, Billow, RigidMulti.
+	 */
 	void SetFractalType(FractalType fractalType) { m_fractalType = fractalType; }
 
-	// Sets return type from cellular noise calculations
-	// Note: NoiseLookup requires another FastNoiseCL object be set with SetCellularNoiseLookup() to function
-	// Default: CellValue
+	/*! \brief Sets return type from cellular noise calculations
+	 * Note: NoiseLookup requires another FastNoiseCL object be set with SetCellularNoiseLookup() to function
+	 * Default: CellValue
+	 * \param Possible distance function types:
+	 * Euclidean, Manhattan, Natural.
+	 */
 	void SetCellularDistanceFunction(CellularDistanceFunction cellularDistanceFunction) { m_cellularDistanceFunction = cellularDistanceFunction; }
 
-	// Sets distance function used in cellular noise calculations
-	// Default: Euclidean
+	/*! \brief Sets distance function used in cellular noise calculations
+	 * Default: Euclidean
+	 * \param Possible return types:
+	 * CellValue, NoiseLookup, Distance, Distance2, Distance2Add, Distance2Sub, Distance2Mul, Distance2Div.
+	 */
 	void SetCellularReturnType(CellularReturnType cellularReturnType) { m_cellularReturnType = cellularReturnType; }
 
-	// Noise used to calculate a cell value if cellular return type is NoiseLookup
-	// The lookup value is acquired through GetNoise() so ensure you SetNoiseType() on the noise lookup, value, Perlin or simplex is recommended
+	/*! \brief Noise used to calculate a cell value if cellular return type is NoiseLookup.
+	 * The lookup value is acquired through GetNoise() so ensure you SetNoiseType() on the noise lookup, value, Perlin or simplex is recommended
+	 */
 	void SetCellularNoiseLookup(FastNoiseCL* noise) { m_cellularNoiseLookup = noise; }
 
-	// Sets the maximum warp distance from original location when using Perturb{Fractal}(...)
-	// Default: 1.0
+	/*! \brief Sets the maximum warp distance from original location when using Perturb{Fractal}(...).
+	 * Default: 1.0
+	 */
 	void SetPerturbAmp(float perturbAmp) { m_perturbAmp = perturbAmp / 0.45f; }
+
+	/*! \brief Sets perturb function type.
+	 * Default: None
+	 * \param Possible perturb types:
+	 * None, Single, Fractal.
+	 */
+	void SetPeturbType(PerturbType perturb) { m_perturb = perturb; }
 
 	//OpenCL generation
 	//2D
@@ -149,9 +175,6 @@ public:
 
 	float* GetNoise(Range x, Range y);
 
-	//void Perturb(float* x, float* y, size_t size_m);
-	//void PerturbFractal(float* x, float* y, size_t size_m);
-
 	//3D
 	float* GetValue(Range x, Range y, Range z);
 	float* GetValueFractal(Range x, Range y, Range z);
@@ -169,9 +192,6 @@ public:
 
 	float* GetNoise(Range x, Range y, Range z);
 
-	//void Perturb(float* x, float* y, float* z, size_t size_m);
-	//void PerturbFractal(float* x, float* y, float* z, size_t size_m);
-
 	//4D
 	float* GetSimplex(Range x, Range y, Range z, Range w);
 
@@ -179,9 +199,6 @@ public:
 	float* GetWhiteNoiseInt(RangeInt x, RangeInt y, RangeInt z, RangeInt w);
 
 protected:
-	/*unsigned char m_perm[512];
-	unsigned char m_perm12[512];*/
-
 	int m_seed = 1337;
 	float m_frequency = 0.01f;
 	Interp m_interp = Quintic;
@@ -210,8 +227,11 @@ protected:
 	FastNoiseCL* m_cellularNoiseLookup = nullptr;
 
 	float m_perturbAmp = 1.0f / 0.45f;
+	PerturbType m_perturb = None;
 
     std::unique_ptr<KernelAdapter> kernel_adapter;
+
+    Snapshot CreateSnapshot();
 
 private:
     void PrepareDevice(Device& device);
