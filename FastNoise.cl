@@ -2747,236 +2747,218 @@ __kernel void GEN_WhiteNoiseInt4(
 }
 
 
-/*//NoiseLookup
+//NoiseLookup
 void SingleCellular2L(int m_cellularDistanceFunction,
-    __global uchar* m_perm, int m_seed,
+    int m_seed,
     float *x, float *y)
 {
 	int xr = FastRound(*x);
-	int yr = FastRound(*y);
+    int yr = FastRound(*y);
 
-	float distance = 999999.f;
-	int xc, yc;
+    float distance = 999999;
+    int xc = 0, yc = 0;
 
-	switch (m_cellularDistanceFunction)
-	{
-	default:
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+    switch (m_cellularDistanceFunction)
+    {
+        default:
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - *x + CELL_2D_X[lutPos];
-				float vecY = yi - *y + CELL_2D_Y[lutPos];
+                    float vecX = xi - *x + CELL_2D_X[i];
+                    float vecY = yi - *y + CELL_2D_Y[i];
 
-				float newDistance = vecX * vecX + vecY * vecY;
+                    float newDistance = vecX * vecX + vecY * vecY;
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - *x + CELL_2D_X[lutPos];
-				float vecY = yi - *y + CELL_2D_Y[lutPos];
+                    float vecX = xi - *x + CELL_2D_X[i];
+                    float vecY = yi - *y + CELL_2D_Y[i];
 
-				float newDistance = (FastAbs(vecX) + FastAbs(vecY));
+                    float newDistance = (FastAbs(vecX) + FastAbs(vecY));
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+        case 3:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - *x + CELL_2D_X[lutPos];
-				float vecY = yi - *y + CELL_2D_Y[lutPos];
+                    float vecX = xi - *x + CELL_2D_X[i];
+                    float vecY = yi - *y + CELL_2D_Y[i];
 
-				float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
+                    float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	}
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+    }
 
-	unsigned char lutPos;
-    lutPos = Index2D_256(m_perm, 0, xc, yc);
-    *x = xc + CELL_2D_X[lutPos];
-    *y = yc + CELL_2D_Y[lutPos];
+    //Float2 vec = CELL_2D[Hash2D(m_seed, xc, yc) & 255];
+    ulong i = Hash2D(m_seed, xc, yc) & 255;
+    //return m_cellularNoiseLookup.GetNoise(xc + vec.x, yc + vec.y);
+    *x = xc + CELL_2D_X[i];
+    *y = yc + CELL_2D_Y[i];
 }
-float SingleCellular3L(int m_cellularDistanceFunction
-    __global uchar* m_perm, int m_seed,
+void SingleCellular3L(int m_cellularDistanceFunction,
+    int m_seed,
     float *x, float *y, float *z)
 {
 	int xr = FastRound(*x);
-	int yr = FastRound(*y);
-	int zr = FastRound(*z);
+    int yr = FastRound(*y);
+    int zr = FastRound(*z);
 
-	float distance = 999999.f;
-	int xc, yc, zc;
+    float distance = 999999;
+    int xc = 0, yc = 0, zc = 0;
 
-	switch (m_cellularDistanceFunction)
-	{
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+    switch (m_cellularDistanceFunction)
+    {
+        case 0:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - *x + CELL_3D_X[lutPos];
-					float vecY = yi - *y + CELL_3D_Y[lutPos];
-					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+                        float vecX = xi - *x + CELL_3D_X[i];
+                        float vecY = yi - *y + CELL_3D_Y[i];
+                        float vecZ = zi - *z + CELL_3D_Z[i];
 
-					float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
+                        float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - *x + CELL_3D_X[lutPos];
-					float vecY = yi - *y + CELL_3D_Y[lutPos];
-					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+                        float vecX = xi - *x + CELL_3D_X[i];
+                        float vecY = yi - *y + CELL_3D_Y[i];
+                        float vecZ = zi - *z + CELL_3D_Z[i];
 
-					float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
+                        float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - *x + CELL_3D_X[lutPos];
-					float vecY = yi - *y + CELL_3D_Y[lutPos];
-					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+                        float vecX = xi - *x + CELL_3D_X[i];
+                        float vecY = yi - *y + CELL_3D_Y[i];
+                        float vecZ = zi - *z + CELL_3D_Z[i];
 
-					float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
+                        float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	default:
-		break;
-	}
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+    }
 
-	unsigned char lutPos;
-    lutPos = Index3D_256(m_perm, 0, xc, yc, zc);
-    *x = xc + CELL_3D_X[lutPos];
-    *y = yc + CELL_3D_Y[lutPos];
-    *z = zc + CELL_3D_Z[lutPos];
-}*/
+    //Float3 vec = CELL_3D[Hash3D(m_seed, xc, yc, zc) & 255];
+    ulong i = Hash3D(m_seed, xc, yc, zc) & 255;
+    //return m_cellularNoiseLookup.GetNoise(xc + vec.x, yc + vec.y, zc + vec.z);
+    *x = xc + CELL_3D_X[i];
+    *y = yc + CELL_3D_Y[i];
+    *z = zc + CELL_3D_Z[i];
+}
 
 /*
 Noise Types:
-    0  - Value2
-    1  - ValueFractal2
-    2  - Perlin2
-    3  - PerlinFractal2
-    4  - Simplex2
-    5  - SimplexFractal2
-    6  - Cellular2
-    7  - WhiteNoise2
-    8  - WhiteNoiseInt2
-    9  - Value3
-    10 - ValueFractal3
-    11 - Perlin3
-    12 - PerlinFractal3
-    13 - Simplex3
-    14 - SimplexFractal3
-    15 - Cellular3
-    16 - WhiteNoise3
-    17 - WhiteNoiseInt3
-    18 - Simplex4
-    19 - WhiteNoise4
-    20 - WhiteNoiseInt4
-    21 - Lookup_Cellular2
-    22 - Lookup_Cellular3
+    0 - Value
+    1 - ValueFractal
+    2 - Perlin
+    3 - PerlinFractal
+    4 - Simplex
+    5 - SimplexFractal
+    6 - Cellular
+    7 - WhiteNoise
 */
 
-/*__kernel void GEN_Lookup_Cellular2(
-    float m_perturbAmp, float m_fractalBounding,              // |
-    int m_octaves, float m_lacunarity,                        // |
-    float m_frequency, float m_gain,                          // |
-                                                              // |
-    int m_interp, int m_fractalType,                          // | IN : class members
-    int m_cellularDistanceFunction, int m_cellularReturnType, // |
-                                                              // |
-    __global uchar* m_perm, __global uchar* m_perm12,         // |
-    int m_seed,                                               // |
+__kernel void GEN_Lookup_Cellular2(
+    __global Snapshot* params, ulong size_p, // IN : members of all classes
 
-    ulong size_x, ulong size_y,                               // |
-    float scale_x, float scale_y,                             // |
-    float offset_x, float offset_y,                           // | IN : Parameters
-    __global int* noise_types, ulong lookup_length,           // |
+    ulong size_x, ulong size_y,              // |
+    float scale_x, float scale_y,            // | IN : Parameters
+    float offset_x, float offset_y,          // |
 
-    __global float* noise)                                    // OUT : Noise matrix
+    __global float* noise)                   // OUT : Noise matrix
 {
     // Get Indexes
     size_t index = get_global_id(0);
@@ -2985,96 +2967,77 @@ Noise Types:
 
     //Calculate x and y
     float x = i * scale_x + offset_x;
-    float y = i * scale_y + offset_y;
-
-    x *= m_frequency;
-    y *= m_frequency;
+    float y = j * scale_y + offset_y;
 
     //Calculate value
     int err = 0;
-    for (ulong i = 0; i < lookup_length; i++) {
-        switch(noise_types[i]) {
+    for (ulong i = 0; i < size_p; i++) {
+        __global Snapshot* p = &params[i];
+
+        switch(p->m_perturb) {
+        case 1:
+            Perturb2(p->m_perturbAmp, p->m_frequency, p->m_interp, p->m_seed, &x, &y);
+            break;
+        case 2:
+            PerturbFractal2(p->m_perturbAmp, p->m_fractalBounding, p->m_frequency, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_interp, p->m_seed, &x, &y);
+            break;
+        default:
+            break;
+        }
+
+        switch(p->m_noiseType) {
         case 0:
-            noise[index] = GetValue2(m_frequency, m_interp, m_perm, x, y);
+            noise[index] = GetValue2(p->m_frequency, p->m_interp, p->m_seed, x, y);
             return;
             break;
         case 1:
-            noise[index] = GetValueFractal2(m_fractalType, m_frequency, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y);
+            noise[index] = GetValueFractal2(p->m_fractalType, p->m_frequency, p->m_lacunarity, p->m_gain, p->m_octaves, p->m_fractalBounding, p->m_interp, p->m_seed, x, y);
             return;
             break;
         case 2:
-            noise[index] = GetPerlin2(m_frequency, m_interp, m_perm, m_perm12, x, y);
+            noise[index] = GetPerlin2(p->m_frequency, p->m_interp, p->m_seed, x, y);
             return;
             break;
         case 3:
-            noise[index] = GetPerlinFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y);
+            noise[index] = GetPerlinFractal2(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_interp, p->m_seed, x, y);
             return;
             break;
         case 4:
-            noise[index] = GetSimplex2(m_frequency, m_perm, m_perm12, x, y);
+            noise[index] = GetSimplex2(p->m_frequency, p->m_seed, x, y);
             return;
             break;
         case 5:
-            noise[index] = GetSimplexFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y);
+            noise[index] = GetSimplexFractal2(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_seed, x, y);
             return;
             break;
         case 6:
-            noise[index] = GetCellular2(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, x, y);
-            return;
-            break;
+            switch(p->m_cellularReturnType) {
+            case 1:
+                x *= p->m_frequency;
+                y *= p->m_frequency;
+                SingleCellular2L(p->m_cellularDistanceFunction, p->m_seed, &x, &y);
+                break;
+            default:
+                noise[index] = GetCellular2(p->m_frequency, p->m_cellularDistanceFunction, p->m_cellularReturnType, p->m_seed, x, y);
+                return;
+                break;
+            }
         case 7:
-            noise[index] = GetWhiteNoise2(m_seed, x, y);
+            noise[index] = GetWhiteNoise2(p->m_seed, x, y);
             return;
-            break;
-        case 8:
-            noise[index] = GetWhiteNoiseInt2(m_seed, cast_int(x), cast_int(y));
-            return;
-            break;
-        case 9:
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-        case 16:
-        case 17:
-        case 18:
-        case 19:
-        case 20:
-            err = 1;
-            break;
-        case 21:
-            void SingleCellular2L(m_cellularDistanceFunction, m_perm, m_seed, &x, &y);
-            break;
-        case 22:
-            err = 2;
-            break;
-        }
-        if (err != 0) {
-            noise[index] = 0.0f;
             break;
         }
     }
 }
 
 __kernel void GEN_Lookup_Cellular3(
-    float m_perturbAmp, float m_fractalBounding,              // |
-    int m_octaves, float m_lacunarity,                        // |
-    float m_frequency, float m_gain,                          // |
-                                                              // |
-    int m_interp, int m_fractalType,                          // | IN : class members
-    int m_cellularDistanceFunction, int m_cellularReturnType, // |
-                                                              // |
-    __global uchar* m_perm, __global uchar* m_perm12,         // |
-    int m_seed,                                               // |
+    __global Snapshot* params, ulong size_p,        // IN : members of all classes
 
-    ulong size_x, ulong size_y, ulong size_z,                 // |
-    float scale_x, float scale_y, float scale_z,              // |
-    float offset_x, float offset_y, float offset_z,           // | IN : Parameters
-    __global int* noise_types, ulong lookup_length,           // |
+    ulong size_x, ulong size_y, ulong size_z,       // |
+    float scale_x, float scale_y, float scale_z,    // | IN : Parameters
+    float offset_x, float offset_y, float offset_z, // |
 
-    __global float* noise)                                    // OUT : Noise matrix
+    __global float* noise)                          // OUT : Noise matrix
 {
     // Get Indexes
     size_t index = get_global_id(0);
@@ -3082,9 +3045,72 @@ __kernel void GEN_Lookup_Cellular3(
     size_t i = (index - k * size_x * size_y) / size_x;
     size_t j = index - k * size_x * size_y - i * size_x;
 
+    //Calculate x and y
+    float x = i * scale_x + offset_x;
+    float y = j * scale_y + offset_y;
+    float z = k * scale_z + offset_z;
+
     //Calculate value
-    noise[index] = GetCellular3(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
-}*/
+    int err = 0;
+    for (ulong i = 0; i < size_p; i++) {
+        __global Snapshot *p = &params[i];
+
+        switch(p->m_perturb) {
+        case 1:
+            Perturb3(p->m_perturbAmp, p->m_frequency, p->m_interp, p->m_seed, &x, &y, &z);
+            break;
+        case 2:
+            PerturbFractal3(p->m_perturbAmp, p->m_fractalBounding, p->m_frequency, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_interp, p->m_seed, &x, &y, &z);
+            break;
+        default:
+            break;
+        }
+
+        switch(p->m_noiseType) {
+        case 0:
+            noise[index] = GetValue3(p->m_frequency, p->m_interp, p->m_seed, x, y, z);
+            return;
+            break;
+        case 1:
+            noise[index] = GetValueFractal3(p->m_fractalType, p->m_frequency, p->m_lacunarity, p->m_gain, p->m_octaves, p->m_fractalBounding, p->m_interp, p->m_seed, x, y, z);
+            return;
+            break;
+        case 2:
+            noise[index] = GetPerlin3(p->m_frequency, p->m_interp, p->m_seed, x, y, z);
+            return;
+            break;
+        case 3:
+            noise[index] = GetPerlinFractal3(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_interp, p->m_seed, x, y, z);
+            return;
+            break;
+        case 4:
+            noise[index] = GetSimplex3(p->m_frequency, p->m_seed, x, y, z);
+            return;
+            break;
+        case 5:
+            noise[index] = GetSimplexFractal3(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_seed, x, y, z);
+            return;
+            break;
+        case 6:
+            switch(p->m_cellularReturnType) {
+            case 1:
+                x *= p->m_frequency;
+                y *= p->m_frequency;
+                z *= p->m_frequency;
+                SingleCellular3L(p->m_cellularDistanceFunction, p->m_seed, &x, &y, &z);
+                break;
+            default:
+                noise[index] = GetCellular3(p->m_frequency, p->m_cellularDistanceFunction, p->m_cellularReturnType, p->m_seed, x, y, z);
+                return;
+                break;
+            }
+        case 7:
+            noise[index] = GetWhiteNoise3(p->m_seed, x, y, z);
+            return;
+            break;
+        }
+    }
+}
 
 
 )===="

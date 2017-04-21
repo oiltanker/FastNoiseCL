@@ -56,10 +56,16 @@ private:
         }
     };
 public:
+    //! \brief Create FastNoseCL as noise generator
 	FastNoiseCL(Device& device, int seed = 1337) {
 	    SetSeed(seed);
 	    CalculateFractalBounding();
 	    PrepareDevice(device);
+    };
+    //! \brief Create FastNoseCL as NoiseLookup
+    FastNoiseCL(int seed = 1337) {
+	    SetSeed(seed);
+	    CalculateFractalBounding();
     };
 	~FastNoiseCL() { delete m_cellularNoiseLookup; }
 
