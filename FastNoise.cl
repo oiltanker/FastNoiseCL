@@ -193,6 +193,43 @@ unsigned char Index4D_256(__global uchar* m_perm,
 #define Z_PRIME 6971
 #define W_PRIME 1013
 
+int Hash2D(int seed, int x, int y)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    return hash;
+}
+int Hash3D(int seed, int x, int y, int z)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+    hash ^= Z_PRIME * z;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    return hash;
+}
+int Hash4D(int seed, int x, int y, int z, int w)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+    hash ^= Z_PRIME * z;
+    hash ^= W_PRIME * w;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    return hash;
+}
+
 float ValCoord2D(int seed, int x, int y)
 {
 	int n = seed;
@@ -221,7 +258,7 @@ float ValCoord4D(int seed, int x, int y, int z, int w)
 	return (n * n * n * 60493) / 2147483648.f;
 }
 
-float ValCoord2DFast(__global uchar* m_perm,
+/*float ValCoord2DFast(__global uchar* m_perm,
     unsigned char offset, int x, int y)
 {
 	return VAL_LUT[Index2D_256(m_perm, offset, x, y)];
@@ -230,9 +267,9 @@ float ValCoord3DFast(__global uchar* m_perm,
     unsigned char offset, int x, int y, int z)
 {
 	return VAL_LUT[Index3D_256(m_perm, offset, x, y, z)];
-}
+}*/
 
-float GradCoord2D(__global uchar* m_perm, __global uchar* m_perm12,
+/*float GradCoord2D(__global uchar* m_perm, __global uchar* m_perm12,
     unsigned char offset, int x, int y, float xd, float yd)
 {
 	unsigned char lutPos = Index2D_12(m_perm, m_perm12, offset, x, y);
@@ -252,6 +289,60 @@ float GradCoord4D(__global uchar* m_perm,
 	unsigned char lutPos = Index4D_32(m_perm, offset, x, y, z, w) << 2;
 
 	return xd*GRAD_4D[lutPos] + yd*GRAD_4D[lutPos + 1] + zd*GRAD_4D[lutPos + 2] + wd*GRAD_4D[lutPos + 3];
+}*/
+
+float GradCoord2D(int seed, int x, int y, float xd, float yd)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    //Float2 g = GRAD_2D[hash & 7];
+    ulong i = hash & 7;
+
+    //return xd * g.x + yd * g.y;
+    return xd * GRAD_X[i] + yd * GRAD_Y[i];
+}
+
+float GradCoord3D(int seed, int x, int y, int z, float xd, float yd, float zd)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+    hash ^= Z_PRIME * z;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    //Float3 g = GRAD_3D[hash & 15];
+    ulong i = hash & 15;
+
+    //return xd * g.x + yd * g.y + zd * g.z;
+    return xd * GRAD_X[i] + yd * GRAD_Y[i] + zd * GRAD_Z[i];
+}
+float GradCoord4D(int seed, int x, int y, int z, int w, float xd, float yd, float zd, float wd)
+{
+    int hash = seed;
+    hash ^= X_PRIME * x;
+    hash ^= Y_PRIME * y;
+    hash ^= Z_PRIME * z;
+    hash ^= W_PRIME * w;
+
+    hash = hash * hash * hash * 60493;
+    hash = (hash >> 13) ^ hash;
+
+    hash &= 31;
+    float a = yd, b = zd, c = wd;            // X,Y,Z
+    switch (hash >> 3)
+    {          // OR, DEPENDING ON HIGH ORDER 2 BITS:
+        case 1: a = wd; b = xd; c = yd; break;     // W,X,Y
+        case 2: a = zd; b = wd; c = xd; break;     // Z,W,X
+        case 3: a = yd; b = zd; c = wd; break;     // Y,Z,W
+    }
+    return ((hash & 4) == 0 ? -a : a) + ((hash & 2) == 0 ? -b : b) + ((hash & 1) == 0 ? -c : c);
 }
 
 
@@ -333,148 +424,147 @@ float GetWhiteNoiseInt2(int m_seed,
 
 //Value noise
 float SingleValue2(int m_interp,
-    __global uchar* m_perm,
-    unsigned char offset, float x, float y)
+    int seed,
+    float x, float y)
 {
 	int x0 = FastFloor(x);
-	int y0 = FastFloor(y);
-	int x1 = x0 + 1;
-	int y1 = y0 + 1;
+    int y0 = FastFloor(y);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
 
-	float xs, ys;
-	switch (m_interp)
-	{
-	case 0:
-		xs = x - (float)x0;
-		ys = y - (float)y0;
-		break;
-	case 1:
-		xs = InterpHermiteFunc(x - (float)x0);
-		ys = InterpHermiteFunc(y - (float)y0);
-		break;
-	case 2:
-		xs = InterpQuinticFunc(x - (float)x0);
-		ys = InterpQuinticFunc(y - (float)y0);
-		break;
-	}
+    float xs, ys;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = x - x0;
+            ys = y - y0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(x - x0);
+            ys = InterpHermiteFunc(y - y0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(x - x0);
+            ys = InterpQuinticFunc(y - y0);
+            break;
+    }
 
-	float xf0 = Lerp(ValCoord2DFast(m_perm, offset, x0, y0), ValCoord2DFast(m_perm, offset, x1, y0), xs);
-	float xf1 = Lerp(ValCoord2DFast(m_perm, offset, x0, y1), ValCoord2DFast(m_perm, offset, x1, y1), xs);
+    float xf0 = Lerp(ValCoord2D(seed, x0, y0), ValCoord2D(seed, x1, y0), xs);
+    float xf1 = Lerp(ValCoord2D(seed, x0, y1), ValCoord2D(seed, x1, y1), xs);
 
-	return Lerp(xf0, xf1, ys);
+    return Lerp(xf0, xf1, ys);
 }
 float SingleValue3(int m_interp,
-    __global uchar* m_perm,
-    unsigned char offset, float x, float y, float z)
+    int seed,
+    float x, float y, float z)
 {
 	int x0 = FastFloor(x);
-	int y0 = FastFloor(y);
-	int z0 = FastFloor(z);
-	int x1 = x0 + 1;
-	int y1 = y0 + 1;
-	int z1 = z0 + 1;
+    int y0 = FastFloor(y);
+    int z0 = FastFloor(z);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+    int z1 = z0 + 1;
 
-	float xs, ys, zs;
-	switch (m_interp)
-	{
-	case 0:
-		xs = x - (float)x0;
-		ys = y - (float)y0;
-		zs = z - (float)z0;
-		break;
-	case 1:
-		xs = InterpHermiteFunc(x - (float)x0);
-		ys = InterpHermiteFunc(y - (float)y0);
-		zs = InterpHermiteFunc(z - (float)z0);
-		break;
-	case 2:
-		xs = InterpQuinticFunc(x - (float)x0);
-		ys = InterpQuinticFunc(y - (float)y0);
-		zs = InterpQuinticFunc(z - (float)z0);
-		break;
-	}
+    float xs, ys, zs;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = x - x0;
+            ys = y - y0;
+            zs = z - z0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(x - x0);
+            ys = InterpHermiteFunc(y - y0);
+            zs = InterpHermiteFunc(z - z0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(x - x0);
+            ys = InterpQuinticFunc(y - y0);
+            zs = InterpQuinticFunc(z - z0);
+            break;
+    }
 
-	float xf00 = Lerp(ValCoord3DFast(m_perm, offset, x0, y0, z0), ValCoord3DFast(m_perm, offset, x1, y0, z0), xs);
-	float xf10 = Lerp(ValCoord3DFast(m_perm, offset, x0, y1, z0), ValCoord3DFast(m_perm, offset, x1, y1, z0), xs);
-	float xf01 = Lerp(ValCoord3DFast(m_perm, offset, x0, y0, z1), ValCoord3DFast(m_perm, offset, x1, y0, z1), xs);
-	float xf11 = Lerp(ValCoord3DFast(m_perm, offset, x0, y1, z1), ValCoord3DFast(m_perm, offset, x1, y1, z1), xs);
+    float xf00 = Lerp(ValCoord3D(seed, x0, y0, z0), ValCoord3D(seed, x1, y0, z0), xs);
+    float xf10 = Lerp(ValCoord3D(seed, x0, y1, z0), ValCoord3D(seed, x1, y1, z0), xs);
+    float xf01 = Lerp(ValCoord3D(seed, x0, y0, z1), ValCoord3D(seed, x1, y0, z1), xs);
+    float xf11 = Lerp(ValCoord3D(seed, x0, y1, z1), ValCoord3D(seed, x1, y1, z1), xs);
 
-	float yf0 = Lerp(xf00, xf10, ys);
-	float yf1 = Lerp(xf01, xf11, ys);
+    float yf0 = Lerp(xf00, xf10, ys);
+    float yf1 = Lerp(xf01, xf11, ys);
 
-	return Lerp(yf0, yf1, zs);
+    return Lerp(yf0, yf1, zs);
 }
 
 float SingleValueFractalFBM3(float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y, float z)
 {
-	float sum = SingleValue3(m_interp, m_perm, m_perm[0], x, y, z);
-	float amp = 1.0f;
-	int i = 0;
+	float sum = SingleValue3(m_interp, seed, x, y, z);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SingleValue3(m_interp, m_perm, m_perm[i], x, y, z) * amp;
-	}
+        amp *= m_gain;
+        sum += SingleValue3(m_interp, ++seed, x, y, z) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleValueFractalBillow3(float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y, float z)
 {
-	float sum = FastAbs(SingleValue3(m_interp, m_perm, m_perm[0], x, y, z)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SingleValue3(m_interp, seed, x, y, z)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += (FastAbs(SingleValue3(m_interp, m_perm, m_perm[i], x, y, z)) * 2.0f - 1.0f) * amp;
-	}
+        amp *= m_gain;
+        sum += (FastAbs(SingleValue3(m_interp, ++seed, x, y, z)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleValueFractalRigidMulti3(float m_lacunarity, float m_gain, int m_octaves,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y, float z)
 {
-	float sum = 1.0f - FastAbs(SingleValue3(m_interp, m_perm, m_perm[0], x, y, z));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SingleValue3(m_interp, seed, x, y, z));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SingleValue3(m_interp, m_perm, m_perm[i], x, y, z))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SingleValue3(m_interp, ++seed, x, y, z))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 
 float GetValueFractal3(float m_frequency, int m_fractalType,
     float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y, float z)
 {
 	x *= m_frequency;
@@ -484,11 +574,11 @@ float GetValueFractal3(float m_frequency, int m_fractalType,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SingleValueFractalFBM3(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y, z);
+		return SingleValueFractalFBM3(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, x, y, z);
 	case 1:
-		return SingleValueFractalBillow3(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y, z);
+		return SingleValueFractalBillow3(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, x, y, z);
 	case 2:
-		return SingleValueFractalRigidMulti3(m_lacunarity, m_gain, m_octaves, m_interp, m_perm, x, y, z);
+		return SingleValueFractalRigidMulti3(m_lacunarity, m_gain, m_octaves, m_interp, m_seed, x, y, z);
 	default:
 		return 0.0f;
 	}
@@ -496,77 +586,74 @@ float GetValueFractal3(float m_frequency, int m_fractalType,
 
 float GetValue3(float m_frequency,
     int m_interp,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y, float z)
 {
-	return SingleValue3(m_interp, m_perm, 0, x * m_frequency, y * m_frequency, z * m_frequency);
+	return SingleValue3(m_interp, m_seed, x * m_frequency, y * m_frequency, z * m_frequency);
 }
 
 
 float SingleValueFractalFBM2(float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y)
 {
-	float sum = SingleValue2(m_interp, m_perm, m_perm[0], x, y);
-	float amp = 1.0f;
-	int i = 0;
+    float sum = SingleValue2(m_interp, seed, x, y);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SingleValue2(m_interp, m_perm, m_perm[i], x, y) * amp;
-	}
+        amp *= m_gain;
+        sum += SingleValue2(m_interp, ++seed, x, y) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 float SingleValueFractalBillow2(float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y)
 {
-	float sum = FastAbs(SingleValue2(m_interp, m_perm, m_perm[0], x, y)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SingleValue2(m_interp, seed, x, y)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		amp *= m_gain;
-		sum += (FastAbs(SingleValue2(m_interp, m_perm, m_perm[i], x, y)) * 2.0f - 1.0f) * amp;
-	}
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        amp *= m_gain;
+        sum += (FastAbs(SingleValue2(m_interp, ++seed, x, y)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleValueFractalRigidMulti2(float m_lacunarity, float m_gain, int m_octaves,
     int m_interp,
-    __global uchar* m_perm,
+    int seed,
     float x, float y)
 {
-	float sum = 1.0f - FastAbs(SingleValue2(m_interp, m_perm, m_perm[0], x, y));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SingleValue2(m_interp, seed, x, y));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SingleValue2(m_interp, m_perm, m_perm[i], x, y))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SingleValue2(m_interp, ++seed, x, y))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 float GetValueFractal2(int m_fractalType, float m_frequency,
     float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y)
 {
 	x *= m_frequency;
@@ -575,11 +662,11 @@ float GetValueFractal2(int m_fractalType, float m_frequency,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SingleValueFractalFBM2(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y);
+		return SingleValueFractalFBM2(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, x, y);
 	case 1:
-		return SingleValueFractalBillow2(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y);
+		return SingleValueFractalBillow2(m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, x, y);
 	case 2:
-		return SingleValueFractalRigidMulti2(m_lacunarity, m_gain, m_octaves, m_interp, m_perm, x, y);
+		return SingleValueFractalRigidMulti2(m_lacunarity, m_gain, m_octaves, m_interp, m_seed, x, y);
 	default:
 		return 0.0f;
 	}
@@ -587,134 +674,132 @@ float GetValueFractal2(int m_fractalType, float m_frequency,
 
 float GetValue2(float m_frequency,
     int m_interp,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y)
 {
-	return SingleValue2(m_interp, m_perm, 0, x * m_frequency, y * m_frequency);
+	return SingleValue2(m_interp, m_seed, x * m_frequency, y * m_frequency);
 }
 
 
 //Perlin Noise
 //3D
 float SinglePerlin3(int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
-    unsigned char offset, float x, float y, float z)
+    int seed,
+    float x, float y, float z)
 {
 	int x0 = FastFloor(x);
-	int y0 = FastFloor(y);
-	int z0 = FastFloor(z);
-	int x1 = x0 + 1;
-	int y1 = y0 + 1;
-	int z1 = z0 + 1;
+    int y0 = FastFloor(y);
+    int z0 = FastFloor(z);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+    int z1 = z0 + 1;
 
-	float xs, ys, zs;
-	switch (m_interp)
-	{
-	case 0:
-		xs = x - (float)x0;
-		ys = y - (float)y0;
-		zs = z - (float)z0;
-		break;
-	case 1:
-		xs = InterpHermiteFunc(x - (float)x0);
-		ys = InterpHermiteFunc(y - (float)y0);
-		zs = InterpHermiteFunc(z - (float)z0);
-		break;
-	case 2:
-		xs = InterpQuinticFunc(x - (float)x0);
-		ys = InterpQuinticFunc(y - (float)y0);
-		zs = InterpQuinticFunc(z - (float)z0);
-		break;
-	}
+    float xs, ys, zs;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = x - x0;
+            ys = y - y0;
+            zs = z - z0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(x - x0);
+            ys = InterpHermiteFunc(y - y0);
+            zs = InterpHermiteFunc(z - z0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(x - x0);
+            ys = InterpQuinticFunc(y - y0);
+            zs = InterpQuinticFunc(z - z0);
+            break;
+    }
 
-	float xd0 = x - (float)x0;
-	float yd0 = y - (float)y0;
-	float zd0 = z - (float)z0;
-	float xd1 = xd0 - 1.0f;
-	float yd1 = yd0 - 1.0f;
-	float zd1 = zd0 - 1.0f;
+    float xd0 = x - x0;
+    float yd0 = y - y0;
+    float zd0 = z - z0;
+    float xd1 = xd0 - 1;
+    float yd1 = yd0 - 1;
+    float zd1 = zd0 - 1;
 
-	float xf00 = Lerp(GradCoord3D(m_perm, m_perm12, offset, x0, y0, z0, xd0, yd0, zd0), GradCoord3D(m_perm, m_perm12, offset, x1, y0, z0, xd1, yd0, zd0), xs);
-	float xf10 = Lerp(GradCoord3D(m_perm, m_perm12, offset, x0, y1, z0, xd0, yd1, zd0), GradCoord3D(m_perm, m_perm12, offset, x1, y1, z0, xd1, yd1, zd0), xs);
-	float xf01 = Lerp(GradCoord3D(m_perm, m_perm12, offset, x0, y0, z1, xd0, yd0, zd1), GradCoord3D(m_perm, m_perm12, offset, x1, y0, z1, xd1, yd0, zd1), xs);
-	float xf11 = Lerp(GradCoord3D(m_perm, m_perm12, offset, x0, y1, z1, xd0, yd1, zd1), GradCoord3D(m_perm, m_perm12, offset, x1, y1, z1, xd1, yd1, zd1), xs);
+    float xf00 = Lerp(GradCoord3D(seed, x0, y0, z0, xd0, yd0, zd0), GradCoord3D(seed, x1, y0, z0, xd1, yd0, zd0), xs);
+    float xf10 = Lerp(GradCoord3D(seed, x0, y1, z0, xd0, yd1, zd0), GradCoord3D(seed, x1, y1, z0, xd1, yd1, zd0), xs);
+    float xf01 = Lerp(GradCoord3D(seed, x0, y0, z1, xd0, yd0, zd1), GradCoord3D(seed, x1, y0, z1, xd1, yd0, zd1), xs);
+    float xf11 = Lerp(GradCoord3D(seed, x0, y1, z1, xd0, yd1, zd1), GradCoord3D(seed, x1, y1, z1, xd1, yd1, zd1), xs);
 
-	float yf0 = Lerp(xf00, xf10, ys);
-	float yf1 = Lerp(xf01, xf11, ys);
+    float yf0 = Lerp(xf00, xf10, ys);
+    float yf1 = Lerp(xf01, xf11, ys);
 
-	return Lerp(yf0, yf1, zs);
+    return Lerp(yf0, yf1, zs);
 }
 
 float SinglePerlinFractalFBM3(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[0], x, y, z);
-	float amp = 1.0f;
-	int i = 0;
+    float sum = SinglePerlin3(m_interp, seed, x, y, z);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[i], x, y, z) * amp;
-	}
+        amp *= m_gain;
+        sum += SinglePerlin3(m_interp, ++seed, x, y, z) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SinglePerlinFractalBillow3(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = FastAbs(SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[0], x, y, z)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SinglePerlin3(m_interp, seed, x, y, z)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += (FastAbs(SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[i], x, y, z)) * 2.0f - 1.0f) * amp;
-	}
+        amp *= m_gain;
+        sum += (FastAbs(SinglePerlin3(m_interp, ++seed, x, y, z)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SinglePerlinFractalRigidMulti3(int m_octaves, float m_lacunarity, float m_gain,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = 1.0f - FastAbs(SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[0], x, y, z));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SinglePerlin3(m_interp, seed, x, y, z));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SinglePerlin3(m_interp, m_perm, m_perm12, m_perm[i], x, y, z))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SinglePerlin3(m_interp, ++seed, x, y, z))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 
 float GetPerlinFractal3(float m_frequency, int m_fractalType,
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y, float z)
 {
 	x *= m_frequency;
@@ -724,11 +809,11 @@ float GetPerlinFractal3(float m_frequency, int m_fractalType,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SinglePerlinFractalFBM3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y, z);
+		return SinglePerlinFractalFBM3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, x, y, z);
 	case 1:
-		return SinglePerlinFractalBillow3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y, z);
+		return SinglePerlinFractalBillow3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, x, y, z);
 	case 2:
-		return SinglePerlinFractalRigidMulti3(m_octaves, m_lacunarity, m_gain, m_interp, m_perm, m_perm12, x, y, z);
+		return SinglePerlinFractalRigidMulti3(m_octaves, m_lacunarity, m_gain, m_interp, m_seed, x, y, z);
 	default:
 		return 0.0f;
 	}
@@ -736,117 +821,115 @@ float GetPerlinFractal3(float m_frequency, int m_fractalType,
 
 float GetPerlin3(float m_frequency,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y, float z)
 {
-	return SinglePerlin3(m_interp, m_perm, m_perm12, 0, x * m_frequency, y * m_frequency, z * m_frequency);
+	return SinglePerlin3(m_interp, m_seed, x * m_frequency, y * m_frequency, z * m_frequency);
 }
 
 //2D
 float SinglePerlin2(int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
-    unsigned char offset, float x, float y)
+    int seed,
+    float x, float y)
 {
-	int x0 = FastFloor(x);
-	int y0 = FastFloor(y);
-	int x1 = x0 + 1;
-	int y1 = y0 + 1;
+    int x0 = FastFloor(x);
+    int y0 = FastFloor(y);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
 
-	float xs, ys;
-	switch (m_interp)
-	{
-	case 0:
-		xs = x - (float)x0;
-		ys = y - (float)y0;
-		break;
-	case 1:
-		xs = InterpHermiteFunc(x - (float)x0);
-		ys = InterpHermiteFunc(y - (float)y0);
-		break;
-	case 2:
-		xs = InterpQuinticFunc(x - (float)x0);
-		ys = InterpQuinticFunc(y - (float)y0);
-		break;
-	}
+    float xs, ys;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = x - x0;
+            ys = y - y0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(x - x0);
+            ys = InterpHermiteFunc(y - y0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(x - x0);
+            ys = InterpQuinticFunc(y - y0);
+            break;
+    }
 
-	float xd0 = x - (float)x0;
-	float yd0 = y - (float)y0;
-	float xd1 = xd0 - 1.0f;
-	float yd1 = yd0 - 1.0f;
+    float xd0 = x - x0;
+    float yd0 = y - y0;
+    float xd1 = xd0 - 1;
+    float yd1 = yd0 - 1;
 
-	float xf0 = Lerp(GradCoord2D(m_perm, m_perm12, offset, x0, y0, xd0, yd0), GradCoord2D(m_perm, m_perm12, offset, x1, y0, xd1, yd0), xs);
-	float xf1 = Lerp(GradCoord2D(m_perm, m_perm12, offset, x0, y1, xd0, yd1), GradCoord2D(m_perm, m_perm12, offset, x1, y1, xd1, yd1), xs);
+    float xf0 = Lerp(GradCoord2D(seed, x0, y0, xd0, yd0), GradCoord2D(seed, x1, y0, xd1, yd0), xs);
+    float xf1 = Lerp(GradCoord2D(seed, x0, y1, xd0, yd1), GradCoord2D(seed, x1, y1, xd1, yd1), xs);
 
-	return Lerp(xf0, xf1, ys);
+    return Lerp(xf0, xf1, ys);
 }
 
 float SinglePerlinFractalFBM2(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[0], x, y);
-	float amp = 1.0f;
-	int i = 0;
+    float sum = SinglePerlin2(m_interp, seed, x, y);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[i], x, y) * amp;
-	}
+        amp *= m_gain;
+        sum += SinglePerlin2(m_interp, ++seed, x, y) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SinglePerlinFractalBillow2(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = FastAbs(SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[0], x, y)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SinglePerlin2(m_interp, seed, x, y)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += (FastAbs(SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[i], x, y)) * 2.0f - 1.0f) * amp;
-	}
+        amp *= m_gain;
+        sum += (FastAbs(SinglePerlin2(m_interp, ++seed, x, y)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SinglePerlinFractalRigidMulti2(int m_octaves, float m_lacunarity, float m_gain,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = 1.0f - FastAbs(SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[0], x, y));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SinglePerlin2(m_interp, seed, x, y));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SinglePerlin2(m_interp, m_perm, m_perm12, m_perm[i], x, y))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SinglePerlin2(m_interp, ++seed, x, y))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 
 float GetPerlinFractal2(float m_frequency, int m_fractalType,
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y)
 {
 	x *= m_frequency;
@@ -855,11 +938,11 @@ float GetPerlinFractal2(float m_frequency, int m_fractalType,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SinglePerlinFractalFBM2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y);
+		return SinglePerlinFractalFBM2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, x, y);
 	case 1:
-		return SinglePerlinFractalBillow2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y);
+		return SinglePerlinFractalBillow2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, x, y);
 	case 2:
-		return SinglePerlinFractalRigidMulti2(m_octaves, m_lacunarity, m_gain, m_interp, m_perm, m_perm12, x, y);
+		return SinglePerlinFractalRigidMulti2(m_octaves, m_lacunarity, m_gain, m_interp, m_seed, x, y);
 	default:
 		return 0.0f;
 	}
@@ -867,10 +950,10 @@ float GetPerlinFractal2(float m_frequency, int m_fractalType,
 
 float GetPerlin2(float m_frequency,
     int m_interp,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y)
 {
-	return SinglePerlin2(m_interp, m_perm, m_perm12, 0, x * m_frequency, y * m_frequency);
+	return SinglePerlin2(m_interp, m_seed, x * m_frequency, y * m_frequency);
 }
 
 
@@ -878,171 +961,165 @@ float GetPerlin2(float m_frequency,
 //3D
 __constant float F3 = 1.0f / 3.0f;
 __constant float G3 = 1.0f / 6.0f;
+__constant float G33 = 1.0f / 6.0f * 3 - 1;
 
-float SingleSimplex3(__global uchar* m_perm, __global uchar* m_perm12,
-    unsigned char offset, float x, float y, float z)
+float SingleSimplex3(int seed,
+    float x, float y, float z)
 {
 	float t = (x + y + z) * F3;
-	int i = FastFloor(x + t);
-	int j = FastFloor(y + t);
-	int k = FastFloor(z + t);
+    int i = FastFloor(x + t);
+    int j = FastFloor(y + t);
+    int k = FastFloor(z + t);
 
-	t = (i + j + k) * G3;
-	float X0 = i - t;
-	float Y0 = j - t;
-	float Z0 = k - t;
+    t = (i + j + k) * G3;
+    float x0 = x - (i - t);
+    float y0 = y - (j - t);
+    float z0 = z - (k - t);
 
-	float x0 = x - X0;
-	float y0 = y - Y0;
-	float z0 = z - Z0;
+    int i1, j1, k1;
+    int i2, j2, k2;
 
-	int i1, j1, k1;
-	int i2, j2, k2;
+    if (x0 >= y0)
+    {
+        if (y0 >= z0)
+        {
+            i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+        }
+        else if (x0 >= z0)
+        {
+            i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1;
+        }
+        else // x0 < z0
+        {
+            i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1;
+        }
+    }
+    else // x0 < y0
+    {
+        if (y0 < z0)
+        {
+            i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1;
+        }
+        else if (x0 < z0)
+        {
+            i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1;
+        }
+        else // x0 >= z0
+        {
+            i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+        }
+    }
 
-	if (x0 >= y0)
-	{
-		if (y0 >= z0)
-		{
-			i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
-		}
-		else if (x0 >= z0)
-		{
-			i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1;
-		}
-		else // x0 < z0
-		{
-			i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1;
-		}
-	}
-	else // x0 < y0
-	{
-		if (y0 < z0)
-		{
-			i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1;
-		}
-		else if (x0 < z0)
-		{
-			i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1;
-		}
-		else // x0 >= z0
-		{
-			i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
-		}
-	}
+    float x1 = x0 - i1 + G3;
+    float y1 = y0 - j1 + G3;
+    float z1 = z0 - k1 + G3;
+    float x2 = x0 - i2 + F3;
+    float y2 = y0 - j2 + F3;
+    float z2 = z0 - k2 + F3;
+    float x3 = x0 + G33;
+    float y3 = y0 + G33;
+    float z3 = z0 + G33;
 
-	float x1 = x0 - i1 + G3;
-	float y1 = y0 - j1 + G3;
-	float z1 = z0 - k1 + G3;
-	float x2 = x0 - i2 + 2.0f*G3;
-	float y2 = y0 - j2 + 2.0f*G3;
-	float z2 = z0 - k2 + 2.0f*G3;
-	float x3 = x0 - 1.0f + 3.0f*G3;
-	float y3 = y0 - 1.0f + 3.0f*G3;
-	float z3 = z0 - 1.0f + 3.0f*G3;
+    float n0, n1, n2, n3;
 
-	float n0, n1, n2, n3;
+    t = 0.6f - x0 * x0 - y0 * y0 - z0 * z0;
+    if (t < 0) n0 = 0;
+    else
+    {
+        t *= t;
+        n0 = t * t * GradCoord3D(seed, i, j, k, x0, y0, z0);
+    }
 
-	t = 0.6f - x0*x0 - y0*y0 - z0*z0;
-	if (t < 0.0f) n0 = 0.0f;
-	else
-	{
-		t *= t;
-		n0 = t*t*GradCoord3D(m_perm, m_perm12, offset, i, j, k, x0, y0, z0);
-	}
+    t = 0.6f - x1 * x1 - y1 * y1 - z1 * z1;
+    if (t < 0) n1 = 0;
+    else
+    {
+        t *= t;
+        n1 = t * t * GradCoord3D(seed, i + i1, j + j1, k + k1, x1, y1, z1);
+    }
 
-	t = 0.6f - x1*x1 - y1*y1 - z1*z1;
-	if (t < 0.0f) n1 = 0.0f;
-	else
-	{
-		t *= t;
-		n1 = t*t*GradCoord3D(m_perm, m_perm12, offset, i + i1, j + j1, k + k1, x1, y1, z1);
-	}
+    t = 0.6f - x2 * x2 - y2 * y2 - z2 * z2;
+    if (t < 0) n2 = 0;
+    else
+    {
+        t *= t;
+        n2 = t * t * GradCoord3D(seed, i + i2, j + j2, k + k2, x2, y2, z2);
+    }
 
-	t = 0.6f - x2*x2 - y2*y2 - z2*z2;
-	if (t < 0.0f) n2 = 0.0f;
-	else
-	{
-		t *= t;
-		n2 = t*t*GradCoord3D(m_perm, m_perm12, offset, i + i2, j + j2, k + k2, x2, y2, z2);
-	}
+    t = 0.6f - x3 * x3 - y3 * y3 - z3 * z3;
+    if (t < 0) n3 = 0;
+    else
+    {
+        t *= t;
+        n3 = t * t * GradCoord3D(seed, i + 1, j + 1, k + 1, x3, y3, z3);
+    }
 
-	t = 0.6f - x3*x3 - y3*y3 - z3*z3;
-	if (t < 0.0f) n3 = 0.0f;
-	else
-	{
-		t *= t;
-		n3 = t*t*GradCoord3D(m_perm, m_perm12, offset, i + 1, j + 1, k + 1, x3, y3, z3);
-	}
-
-	return 32.0f * (n0 + n1 + n2 + n3);
+    return 32 * (n0 + n1 + n2 + n3);
 }
 
 float SingleSimplexFractalFBM3(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = SingleSimplex3(m_perm, m_perm12, m_perm[0], x, y, z);
-	float amp = 1.0f;
-	int i = 0;
+    float sum = SingleSimplex3(seed, x, y, z);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SingleSimplex3(m_perm, m_perm12, m_perm[i], x, y, z) * amp;
-	}
+        amp *= m_gain;
+        sum += SingleSimplex3(++seed, x, y, z) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleSimplexFractalBillow3(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = FastAbs(SingleSimplex3(m_perm, m_perm12, m_perm[0], x, y, z)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SingleSimplex3(seed, x, y, z)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += (FastAbs(SingleSimplex3(m_perm, m_perm12, m_perm[i], x, y, z)) * 2.0f - 1.0f) * amp;
-	}
+        amp *= m_gain;
+        sum += (FastAbs(SingleSimplex3(++seed, x, y, z)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleSimplexFractalRigidMulti3(int m_octaves, float m_lacunarity, float m_gain,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y, float z)
 {
-	float sum = 1.0f - FastAbs(SingleSimplex3(m_perm, m_perm12, m_perm[0], x, y, z));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SingleSimplex3(seed, x, y, z));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
-		z *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
+        z *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SingleSimplex3(m_perm, m_perm12, m_perm[i], x, y, z))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SingleSimplex3(++seed, x, y, z))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 
 float GetSimplexFractal3(float m_frequency, int m_fractalType,
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y, float z)
 {
 	x *= m_frequency;
@@ -1052,148 +1129,145 @@ float GetSimplexFractal3(float m_frequency, int m_fractalType,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SingleSimplexFractalFBM3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y, z);
+		return SingleSimplexFractalFBM3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, x, y, z);
 	case 1:
-		return SingleSimplexFractalBillow3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y, z);
+		return SingleSimplexFractalBillow3(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, x, y, z);
 	case 2:
-		return SingleSimplexFractalRigidMulti3(m_octaves, m_lacunarity, m_gain, m_perm, m_perm12, x, y, z);
+		return SingleSimplexFractalRigidMulti3(m_octaves, m_lacunarity, m_gain, m_seed, x, y, z);
 	default:
 		return 0.0f;
 	}
 }
 
 float GetSimplex3(float m_frequency,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y, float z)
 {
-	return SingleSimplex3(m_perm, m_perm12, 0, x * m_frequency, y * m_frequency, z * m_frequency);
+	return SingleSimplex3(m_seed, x * m_frequency, y * m_frequency, z * m_frequency);
 }
 
 //2D
 __constant float F2 = 1.f / 2.f;
 __constant float G2 = 1.f / 4.f;
 
-float SingleSimplex2(__global uchar* m_perm, __global uchar* m_perm12,
-    unsigned char offset, float x, float y)
+float SingleSimplex2(int seed,
+    float x, float y)
 {
 	float t = (x + y) * F2;
-	int i = FastFloor(x + t);
-	int j = FastFloor(y + t);
+    int i = FastFloor(x + t);
+    int j = FastFloor(y + t);
 
-	t = (i + j) * G2;
-	float X0 = i - t;
-	float Y0 = j - t;
+    t = (i + j) * G2;
+    float X0 = i - t;
+    float Y0 = j - t;
 
-	float x0 = x - X0;
-	float y0 = y - Y0;
+    float x0 = x - X0;
+    float y0 = y - Y0;
 
-	int i1, j1;
-	if (x0 > y0)
-	{
-		i1 = 1; j1 = 0;
-	}
-	else
-	{
-		i1 = 0; j1 = 1;
-	}
+    int i1, j1;
+    if (x0 > y0)
+    {
+        i1 = 1; j1 = 0;
+    }
+    else
+    {
+        i1 = 0; j1 = 1;
+    }
 
-	float x1 = x0 - (float)i1 + G2;
-	float y1 = y0 - (float)j1 + G2;
-	float x2 = x0 - 1.0f + 2.0f*G2;
-	float y2 = y0 - 1.0f + 2.0f*G2;
+    float x1 = x0 - i1 + G2;
+    float y1 = y0 - j1 + G2;
+    float x2 = x0 - 1 + F2;
+    float y2 = y0 - 1 + F2;
 
-	float n0, n1, n2;
+    float n0, n1, n2;
 
-	t = 0.5f - x0*x0 - y0*y0;
-	if (t < 0) n0 = 0;
-	else
-	{
-		t *= t;
-		n0 = t * t * GradCoord2D(m_perm, m_perm12, offset, i, j, x0, y0);
-	}
+    t = 0.5f - x0 * x0 - y0 * y0;
+    if (t < 0) n0 = 0;
+    else
+    {
+        t *= t;
+        n0 = t * t * GradCoord2D(seed, i, j, x0, y0);
+    }
 
-	t = 0.5f - x1*x1 - y1*y1;
-	if (t < 0) n1 = 0;
-	else
-	{
-		t *= t;
-		n1 = t*t*GradCoord2D(m_perm, m_perm12, offset, i + i1, j + j1, x1, y1);
-	}
+    t = 0.5f - x1 * x1 - y1 * y1;
+    if (t < 0) n1 = 0;
+    else
+    {
+        t *= t;
+        n1 = t * t * GradCoord2D(seed, i + i1, j + j1, x1, y1);
+    }
 
-	t = 0.5f - x2*x2 - y2*y2;
-	if (t < 0) n2 = 0;
-	else
-	{
-		t *= t;
-		n2 = t*t*GradCoord2D(m_perm, m_perm12, offset, i + 1, j + 1, x2, y2);
-	}
+    t = 0.5f - x2 * x2 - y2 * y2;
+    if (t < 0) n2 = 0;
+    else
+    {
+        t *= t;
+        n2 = t * t * GradCoord2D(seed, i + 1, j + 1, x2, y2);
+    }
 
-	return  50.0f * (n0 + n1 + n2);
+    return 50 * (n0 + n1 + n2);
 }
 
 float SingleSimplexFractalFBM2(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = SingleSimplex2(m_perm, m_perm12, m_perm[0], x, y);
-	float amp = 1.0f;
-	int i = 0;
+    float sum = SingleSimplex2(seed, x, y);
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += SingleSimplex2(m_perm, m_perm12, m_perm[i], x, y) * amp;
-	}
+        amp *= m_gain;
+        sum += SingleSimplex2(++seed, x, y) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleSimplexFractalBillow2(int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = FastAbs(SingleSimplex2(m_perm, m_perm12, m_perm[0], x, y)) * 2.0f - 1.0f;
-	float amp = 1.0f;
-	int i = 0;
+    float sum = FastAbs(SingleSimplex2(seed, x, y)) * 2 - 1;
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum += (FastAbs(SingleSimplex2(m_perm, m_perm12, m_perm[i], x, y)) * 2.0f - 1.0f) * amp;
-	}
+        amp *= m_gain;
+        sum += (FastAbs(SingleSimplex2(++seed, x, y)) * 2 - 1) * amp;
+    }
 
-	return sum * m_fractalBounding;
+    return sum * m_fractalBounding;
 }
 
 float SingleSimplexFractalRigidMulti2(int m_octaves, float m_lacunarity, float m_gain,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int seed,
     float x, float y)
 {
-	float sum = 1.0f - FastAbs(SingleSimplex2(m_perm, m_perm12, m_perm[0], x, y));
-	float amp = 1.0f;
-	int i = 0;
+    float sum = 1 - FastAbs(SingleSimplex2(seed, x, y));
+    float amp = 1;
 
-	while (++i < m_octaves)
-	{
-		x *= m_lacunarity;
-		y *= m_lacunarity;
+    for (int i = 1; i < m_octaves; i++)
+    {
+        x *= m_lacunarity;
+        y *= m_lacunarity;
 
-		amp *= m_gain;
-		sum -= (1.0f - FastAbs(SingleSimplex2(m_perm, m_perm12, m_perm[i], x, y))) * amp;
-	}
+        amp *= m_gain;
+        sum -= (1 - FastAbs(SingleSimplex2(++seed, x, y))) * amp;
+    }
 
-	return sum;
+    return sum;
 }
 
 float GetSimplexFractal2(float m_frequency, int m_fractalType,
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y)
 {
 	x *= m_frequency;
@@ -1202,21 +1276,21 @@ float GetSimplexFractal2(float m_frequency, int m_fractalType,
 	switch (m_fractalType)
 	{
 	case 0:
-		return SingleSimplexFractalFBM2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y);
+		return SingleSimplexFractalFBM2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, x, y);
 	case 1:
-		return SingleSimplexFractalBillow2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y);
+		return SingleSimplexFractalBillow2(m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, x, y);
 	case 2:
-		return SingleSimplexFractalRigidMulti2(m_octaves, m_lacunarity, m_gain, m_perm, m_perm12, x, y);
+		return SingleSimplexFractalRigidMulti2(m_octaves, m_lacunarity, m_gain, m_seed, x, y);
 	default:
 		return 0.0f;
 	}
 }
 
 float GetSimplex2(float m_frequency,
-    __global uchar* m_perm, __global uchar* m_perm12,
+    int m_seed,
     float x, float y)
 {
-	return SingleSimplex2(m_perm, m_perm12, 0, x * m_frequency, y * m_frequency);
+	return SingleSimplex2(m_seed, x * m_frequency, y * m_frequency);
 }
 
 //4D
@@ -1234,324 +1308,328 @@ __constant unsigned char SIMPLEX_4D[] =
 __constant float F4 = 0.3090169943749474241022934171828190588601545899028814;
 __constant float G4 = 0.1381966011250105151795413165634361882279690820194237;
 
-float SingleSimplex4(__global uchar* m_perm,
-    unsigned char offset, float x, float y, float z, float w)
+float SingleSimplex4(int seed,
+    float x, float y, float z, float w)
 {
-	float n0, n1, n2, n3, n4;
-	float t = (x + y + z + w) * F4;
-	int i = FastFloor(x + t);
-	int j = FastFloor(y + t);
-	int k = FastFloor(z + t);
-	int l = FastFloor(w + t);
-	t = (i + j + k + l) * G4;
-	float X0 = i - t;
-	float Y0 = j - t;
-	float Z0 = k - t;
-	float W0 = l - t;
-	float x0 = x - X0;
-	float y0 = y - Y0;
-	float z0 = z - Z0;
-	float w0 = w - W0;
+    float n0, n1, n2, n3, n4;
+    float t = (x + y + z + w) * F4;
+    int i = FastFloor(x + t);
+    int j = FastFloor(y + t);
+    int k = FastFloor(z + t);
+    int l = FastFloor(w + t);
+    t = (i + j + k + l) * G4;
+    float X0 = i - t;
+    float Y0 = j - t;
+    float Z0 = k - t;
+    float W0 = l - t;
+    float x0 = x - X0;
+    float y0 = y - Y0;
+    float z0 = z - Z0;
+    float w0 = w - W0;
 
-	int c = (x0 > y0) ? 32 : 0;
-	c += (x0 > z0) ? 16 : 0;
-	c += (y0 > z0) ? 8 : 0;
-	c += (x0 > w0) ? 4 : 0;
-	c += (y0 > w0) ? 2 : 0;
-	c += (z0 > w0) ? 1 : 0;
-	c <<= 2;
+    int c = (x0 > y0) ? 32 : 0;
+    c += (x0 > z0) ? 16 : 0;
+    c += (y0 > z0) ? 8 : 0;
+    c += (x0 > w0) ? 4 : 0;
+    c += (y0 > w0) ? 2 : 0;
+    c += (z0 > w0) ? 1 : 0;
+    c <<= 2;
 
-	int i1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
-	int i2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
-	int i3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
-	int j1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
-	int j2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
-	int j3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
-	int k1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
-	int k2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
-	int k3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
-	int l1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
-	int l2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
-	int l3 = SIMPLEX_4D[c] >= 1 ? 1 : 0;
+    int i1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
+    int i2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
+    int i3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
+    int j1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
+    int j2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
+    int j3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
+    int k1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
+    int k2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
+    int k3 = SIMPLEX_4D[c++] >= 1 ? 1 : 0;
+    int l1 = SIMPLEX_4D[c] >= 3 ? 1 : 0;
+    int l2 = SIMPLEX_4D[c] >= 2 ? 1 : 0;
+    int l3 = SIMPLEX_4D[c] >= 1 ? 1 : 0;
 
-	float x1 = x0 - i1 + G4;
-	float y1 = y0 - j1 + G4;
-	float z1 = z0 - k1 + G4;
-	float w1 = w0 - l1 + G4;
-	float x2 = x0 - i2 + 2.0f*G4;
-	float y2 = y0 - j2 + 2.0f*G4;
-	float z2 = z0 - k2 + 2.0f*G4;
-	float w2 = w0 - l2 + 2.0f*G4;
-	float x3 = x0 - i3 + 3.0f*G4;
-	float y3 = y0 - j3 + 3.0f*G4;
-	float z3 = z0 - k3 + 3.0f*G4;
-	float w3 = w0 - l3 + 3.0f*G4;
-	float x4 = x0 - 1.0f + 4.0f*G4;
-	float y4 = y0 - 1.0f + 4.0f*G4;
-	float z4 = z0 - 1.0f + 4.0f*G4;
-	float w4 = w0 - 1.0f + 4.0f*G4;
+    float x1 = x0 - i1 + G4;
+    float y1 = y0 - j1 + G4;
+    float z1 = z0 - k1 + G4;
+    float w1 = w0 - l1 + G4;
+    float x2 = x0 - i2 + 2 * G4;
+    float y2 = y0 - j2 + 2 * G4;
+    float z2 = z0 - k2 + 2 * G4;
+    float w2 = w0 - l2 + 2 * G4;
+    float x3 = x0 - i3 + 3 * G4;
+    float y3 = y0 - j3 + 3 * G4;
+    float z3 = z0 - k3 + 3 * G4;
+    float w3 = w0 - l3 + 3 * G4;
+    float x4 = x0 - 1 + 4 * G4;
+    float y4 = y0 - 1 + 4 * G4;
+    float z4 = z0 - 1 + 4 * G4;
+    float w4 = w0 - 1 + 4 * G4;
 
-	t = 0.6f - x0*x0 - y0*y0 - z0*z0 - w0*w0;
-	if (t < 0.f) n0 = 0.0f;
-	else {
-		t *= t;
-		n0 = t * t * GradCoord4D(m_perm, offset, i, j, k, l, x0, y0, z0, w0);
-	}
-	t = 0.6f - x1*x1 - y1*y1 - z1*z1 - w1*w1;
-	if (t < 0.f) n1 = 0.0f;
-	else {
-		t *= t;
-		n1 = t * t * GradCoord4D(m_perm, offset, i + i1, j + j1, k + k1, l + l1, x1, y1, z1, w1);
-	}
-	t = 0.6f - x2*x2 - y2*y2 - z2*z2 - w2*w2;
-	if (t < 0.f) n2 = 0.0f;
-	else {
-		t *= t;
-		n2 = t * t * GradCoord4D(m_perm, offset, i + i2, j + j2, k + k2, l + l2, x2, y2, z2, w2);
-	}
-	t = 0.6f - x3*x3 - y3*y3 - z3*z3 - w3*w3;
-	if (t < 0.f) n3 = 0.0f;
-	else {
-		t *= t;
-		n3 = t * t * GradCoord4D(m_perm, offset, i + i3, j + j3, k + k3, l + l3, x3, y3, z3, w3);
-	}
-	t = 0.6f - x4*x4 - y4*y4 - z4*z4 - w4*w4;
-	if (t < 0.f) n4 = 0.0f;
-	else {
-		t *= t;
-		n4 = t * t * GradCoord4D(m_perm, offset, i + 1, j + 1, k + 1, l + 1, x4, y4, z4, w4);
-	}
+    t = 0.6f - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
+    if (t < 0) n0 = 0;
+    else
+    {
+        t *= t;
+        n0 = t * t * GradCoord4D(seed, i, j, k, l, x0, y0, z0, w0);
+    }
+    t = 0.6f - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
+    if (t < 0) n1 = 0;
+    else
+    {
+        t *= t;
+        n1 = t * t * GradCoord4D(seed, i + i1, j + j1, k + k1, l + l1, x1, y1, z1, w1);
+    }
+    t = 0.6f - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
+    if (t < 0) n2 = 0;
+    else
+    {
+        t *= t;
+        n2 = t * t * GradCoord4D(seed, i + i2, j + j2, k + k2, l + l2, x2, y2, z2, w2);
+    }
+    t = 0.6f - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
+    if (t < 0) n3 = 0;
+    else
+    {
+        t *= t;
+        n3 = t * t * GradCoord4D(seed, i + i3, j + j3, k + k3, l + l3, x3, y3, z3, w3);
+    }
+    t = 0.6f - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
+    if (t < 0) n4 = 0;
+    else
+    {
+        t *= t;
+        n4 = t * t * GradCoord4D(seed, i + 1, j + 1, k + 1, l + 1, x4, y4, z4, w4);
+    }
 
-	return 27.0f * (n0 + n1 + n2 + n3 + n4);
+    return 27 * (n0 + n1 + n2 + n3 + n4);
 }
 
 float GetSimplex4(float m_frequency,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y, float z, float w)
 {
-	return SingleSimplex4(m_perm, 0, x * m_frequency, y * m_frequency, z * m_frequency, w * m_frequency);
+	return SingleSimplex4(m_seed, x * m_frequency, y * m_frequency, z * m_frequency, w * m_frequency);
 }
 
 
 //Cellular Noise
 //3D
 float SingleCellular3(int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm, int m_seed,
+    int m_seed,
     float x, float y, float z)
 {
 	int xr = FastRound(x);
-	int yr = FastRound(y);
-	int zr = FastRound(z);
+    int yr = FastRound(y);
+    int zr = FastRound(z);
 
-	float distance = 999999.f;
-	int xc, yc, zc;
+    float distance = 999999;
+    int xc = 0, yc = 0, zc = 0;
 
-	switch (m_cellularDistanceFunction)
-	{
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+    switch (m_cellularDistanceFunction)
+    {
+        case 0:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
+                        float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
+                        float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
+                        float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
 
-					if (newDistance < distance)
-					{
-						distance = newDistance;
-						xc = xi;
-						yc = yi;
-						zc = zi;
-					}
-				}
-			}
-		}
-		break;
-	default:
-		break;
-	}
+                        if (newDistance < distance)
+                        {
+                            distance = newDistance;
+                            xc = xi;
+                            yc = yi;
+                            zc = zi;
+                        }
+                    }
+                }
+            }
+            break;
+    }
 
-	unsigned char lutPos;
-	switch (m_cellularReturnType)
-	{
-	case 0:
-		return ValCoord3D(m_seed, xc, yc, zc);
+    switch (m_cellularReturnType)
+    {
+        case 0:
+            return ValCoord3D(0, xc, yc, zc);
 
-    //How the hell I'm going to implement this?
-	case 1:
-        //Sry, no assert on GPU
-		//assert(m_cellularNoiseLookup);
+        case 1:
+            //Float3 vec = CELL_3D[Hash3D(m_seed, xc, yc, zc) & 255];
+            //return m_cellularNoiseLookup.GetNoise(xc + vec.x, yc + vec.y, zc + vec.z);
+            return 0.0f;
 
-		//lutPos = Index3D_256(m_perm, 0, xc, yc, zc);
-		//return m_cellularNoiseLookup->GetNoise(xc + CELL_3D_X[lutPos], yc + CELL_3D_Y[lutPos], zc + CELL_3D_Z[lutPos]);*/
-		return 0.0f;
-
-	case 2:
-		return distance - 1.0f;
-	default:
-		return 0.0f;
-	}
+        case 2:
+            return distance - 1;
+        default:
+            return 0;
+    }
 }
 
 float SingleCellular2Edge3(int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y, float z)
 {
 	int xr = FastRound(x);
-	int yr = FastRound(y);
-	int zr = FastRound(z);
+    int yr = FastRound(y);
+    int zr = FastRound(z);
 
-	float distance = 999999.f;
-	float distance2 = 999999.f;
+    float distance = 999999;
+    float distance2 = 999999;
 
-	switch (m_cellularDistanceFunction)
-	{
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+    switch (m_cellularDistanceFunction)
+    {
+        case 0:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
+                        float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
 
-					distance2 = fmax(fmin(distance2, newDistance), distance);
-					distance = fmin(distance, newDistance);
-				}
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        distance2 = fmax(fmin(distance2, newDistance), distance);
+                        distance = fmin(distance, newDistance);
+                    }
+                }
+            }
+            break;
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
+                        float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
 
-					distance2 = fmax(fmin(distance2, newDistance), distance);
-					distance = fmin(distance, newDistance);
-				}
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				for (int zi = zr - 1; zi <= zr + 1; zi++)
-				{
-					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+                        distance2 = fmax(fmin(distance2, newDistance), distance);
+                        distance = fmin(distance, newDistance);
+                    }
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    for (int zi = zr - 1; zi <= zr + 1; zi++)
+                    {
+                        //Float3 vec = CELL_3D[Hash3D(m_seed, xi, yi, zi) & 255];
+                        ulong i = Hash3D(m_seed, xi, yi, zi) & 255;
 
-					float vecX = xi - x + CELL_3D_X[lutPos];
-					float vecY = yi - y + CELL_3D_Y[lutPos];
-					float vecZ = zi - z + CELL_3D_Z[lutPos];
+                        float vecX = xi - x + CELL_3D_X[i];
+                        float vecY = yi - y + CELL_3D_Y[i];
+                        float vecZ = zi - z + CELL_3D_Z[i];
 
-					float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
+                        float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
 
-					distance2 = fmax(fmin(distance2, newDistance), distance);
-					distance = fmin(distance, newDistance);
-				}
-			}
-		}
-		break;
-	default:
-		break;
-	}
+                        distance2 = fmax(fmin(distance2, newDistance), distance);
+                        distance = fmin(distance, newDistance);
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+    }
 
-	switch (m_cellularReturnType)
-	{
-	case 3:
-		return distance2 - 1.0f;
-	case 4:
-		return distance2 + distance - 1.0f;
-	case 5:
-		return distance2 - distance - 1.0f;
-	case 6:
-		return distance2 * distance - 1.0f;
-	case 7:
-		return distance / distance2 - 1.0f;
-	default:
-		return 0.0f;
-	}
+    switch (m_cellularReturnType)
+    {
+        case 3:
+            return distance2 - 1;
+        case 4:
+            return distance2 + distance - 1;
+        case 5:
+            return distance2 - distance - 1;
+        case 6:
+            return distance2 * distance - 1;
+        case 7:
+            return distance / distance2 - 1;
+        default:
+            return 0;
+    }
 }
 
 float GetCellular3(float m_frequency,
     int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm, int m_seed,
+    int m_seed,
     float x, float y, float z)
 {
 	x *= m_frequency;
@@ -1560,203 +1638,205 @@ float GetCellular3(float m_frequency,
 
 	switch (m_cellularReturnType)
 	{
-	case 0:
 	case 1:
         //How the hell I'm going to implement this?
         return 0.0f;
+    case 0:
 	case 2:
-		return SingleCellular3(m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, x, y, z);
+		return SingleCellular3(m_cellularDistanceFunction, m_cellularReturnType, m_seed, x, y, z);
 	default:
-		return SingleCellular2Edge3(m_cellularDistanceFunction, m_cellularReturnType, m_perm, x, y, z);
+		return SingleCellular2Edge3(m_cellularDistanceFunction, m_cellularReturnType, m_seed, x, y, z);
 	}
 }
 
 //2D
 float SingleCellular2(int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm, int m_seed,
+    int m_seed,
     float x, float y)
 {
 	int xr = FastRound(x);
-	int yr = FastRound(y);
+    int yr = FastRound(y);
 
-	float distance = 999999.f;
-	int xc, yc;
+    float distance = 999999;
+    int xc = 0, yc = 0;
 
-	switch (m_cellularDistanceFunction)
-	{
-	default:
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+    switch (m_cellularDistanceFunction)
+    {
+        default:
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = vecX * vecX + vecY * vecY;
+                    float newDistance = vecX * vecX + vecY * vecY;
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = (FastAbs(vecX) + FastAbs(vecY));
+                    float newDistance = (FastAbs(vecX) + FastAbs(vecY));
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+        case 3:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
+                    float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
 
-				if (newDistance < distance)
-				{
-					distance = newDistance;
-					xc = xi;
-					yc = yi;
-				}
-			}
-		}
-		break;
-	}
+                    if (newDistance < distance)
+                    {
+                        distance = newDistance;
+                        xc = xi;
+                        yc = yi;
+                    }
+                }
+            }
+            break;
+    }
 
-	unsigned char lutPos;
-	switch (m_cellularReturnType)
-	{
-	case 0:
-		return ValCoord2D(m_seed, xc, yc);
+    switch (m_cellularReturnType)
+    {
+        case 0:
+            return ValCoord2D(0, xc, yc);
 
-	case 1:
-        //IDK
-		/*assert(m_cellularNoiseLookup);
+        case 1:
+            //Float2 vec = CELL_2D[Hash2D(m_seed, xc, yc) & 255];
+            //return m_cellularNoiseLookup.GetNoise(xc + vec.x, yc + vec.y);
+            return 0.0f;
 
-		lutPos = Index2D_256(m_perm, 0, xc, yc);
-		return m_cellularNoiseLookup->GetNoise(xc + CELL_2D_X[lutPos], yc + CELL_2D_Y[lutPos]);*/
-		return 0.0f;
-
-	case 2:
-		return distance - 1.0f;
-	default:
-		return 0.0f;
-	}
+        case 2:
+            return distance - 1;
+        default:
+            return 0;
+    }
 }
 
 float SingleCellular2Edge2(int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm,
+    int m_seed,
     float x, float y)
 {
 	int xr = FastRound(x);
-	int yr = FastRound(y);
+    int yr = FastRound(y);
 
-	float distance = 999999.f;
-	float distance2 = 999999.f;
+    float distance = 999999;
+    float distance2 = 999999;
 
-	switch (m_cellularDistanceFunction)
-	{
-	default:
-	case 0:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+    switch (m_cellularDistanceFunction)
+    {
+        default:
+        case 0:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = vecX * vecX + vecY * vecY;
+                    float newDistance = vecX * vecX + vecY * vecY;
 
-				distance2 = fmax(fmin(distance2, newDistance), distance);
-				distance = fmin(distance, newDistance);
-			}
-		}
-		break;
-	case 1:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    distance2 = fmax(fmin(distance2, newDistance), distance);
+                    distance = fmin(distance, newDistance);
+                }
+            }
+            break;
+        case 1:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = FastAbs(vecX) + FastAbs(vecY);
+                    float newDistance = FastAbs(vecX) + FastAbs(vecY);
 
-				distance2 = fmax(fmin(distance2, newDistance), distance);
-				distance = fmin(distance, newDistance);
-			}
-		}
-		break;
-	case 2:
-		for (int xi = xr - 1; xi <= xr + 1; xi++)
-		{
-			for (int yi = yr - 1; yi <= yr + 1; yi++)
-			{
-				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+                    distance2 = fmax(fmin(distance2, newDistance), distance);
+                    distance = fmin(distance, newDistance);
+                }
+            }
+            break;
+        case 2:
+            for (int xi = xr - 1; xi <= xr + 1; xi++)
+            {
+                for (int yi = yr - 1; yi <= yr + 1; yi++)
+                {
+                    //Float2 vec = CELL_2D[Hash2D(m_seed, xi, yi) & 255];
+                    ulong i = Hash2D(m_seed, xi, yi) & 255;
 
-				float vecX = xi - x + CELL_2D_X[lutPos];
-				float vecY = yi - y + CELL_2D_Y[lutPos];
+                    float vecX = xi - x + CELL_2D_X[i];
+                    float vecY = yi - y + CELL_2D_Y[i];
 
-				float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
+                    float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
 
-				distance2 = fmax(fmin(distance2, newDistance), distance);
-				distance = fmin(distance, newDistance);
-			}
-		}
-		break;
-	}
+                    distance2 = fmax(fmin(distance2, newDistance), distance);
+                    distance = fmin(distance, newDistance);
+                }
+            }
+            break;
+    }
 
-	switch (m_cellularReturnType)
-	{
-	case 3:
-		return distance2 - 1.0f;
-	case 4:
-		return distance2 + distance - 1.0f;
-	case 5:
-		return distance2 - distance - 1.0f;
-	case 6:
-		return distance2 * distance - 1.0f;
-	case 7:
-		return distance / distance2 - 1.0f;
-	default:
-		return 0.0f;
-	}
+    switch (m_cellularReturnType)
+    {
+        case 3:
+            return distance2 - 1;
+        case 4:
+            return distance2 + distance - 1;
+        case 5:
+            return distance2 - distance - 1;
+        case 6:
+            return distance2 * distance - 1;
+        case 7:
+            return distance / distance2 - 1;
+        default:
+            return 0.0f;
+    }
 }
 
 float GetCellular2(float m_frequency,
     int m_cellularDistanceFunction, int m_cellularReturnType,
-    __global uchar* m_perm, int m_seed,
+    int m_seed,
     float x, float y)
 {
 	x *= m_frequency;
@@ -1764,17 +1844,207 @@ float GetCellular2(float m_frequency,
 
 	switch (m_cellularReturnType)
 	{
-	case 0:
 	case 1:
         //IDK
         return 0.0f;
+    case 0:
 	case 2:
-		return SingleCellular2(m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, x, y);
+		return SingleCellular2(m_cellularDistanceFunction, m_cellularReturnType, m_seed, x, y);
 	default:
-		return SingleCellular2Edge2(m_cellularDistanceFunction, m_cellularReturnType, m_perm, x, y);
+		return SingleCellular2Edge2(m_cellularDistanceFunction, m_cellularReturnType, m_seed, x, y);
 	}
 }
 
+
+//Perturb
+//3D
+void SinglePerturb3(int m_interp,
+    int seed,
+    float perturbAmp, float frequency, float *x, float *y, float *z)
+{
+	float xf = *x * frequency;
+    float yf = *y * frequency;
+    float zf = *z * frequency;
+
+    int x0 = FastFloor(xf);
+    int y0 = FastFloor(yf);
+    int z0 = FastFloor(zf);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+    int z1 = z0 + 1;
+
+    float xs, ys, zs;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = xf - x0;
+            ys = yf - y0;
+            zs = zf - z0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(xf - x0);
+            ys = InterpHermiteFunc(yf - y0);
+            zs = InterpHermiteFunc(zf - z0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(xf - x0);
+            ys = InterpQuinticFunc(yf - y0);
+            zs = InterpQuinticFunc(zf - z0);
+            break;
+    }
+
+    //Float3 vec0 = CELL_3D[Hash3D(seed, x0, y0, z0) & 255];
+    //Float3 vec1 = CELL_3D[Hash3D(seed, x1, y0, z0) & 255];
+    ulong i1 = Hash3D(seed, x0, y0, z0) & 255;
+    ulong i2 = Hash3D(seed, x1, y0, z0) & 255;
+
+    float lx0x = Lerp(CELL_3D_X[i1], CELL_3D_X[i2], xs);
+    float ly0x = Lerp(CELL_3D_Y[i1], CELL_3D_Y[i2], xs);
+    float lz0x = Lerp(CELL_3D_Z[i1], CELL_3D_Z[i2], xs);
+
+    //vec0 = CELL_3D[Hash3D(seed, x0, y1, z0) & 255];
+    //vec1 = CELL_3D[Hash3D(seed, x1, y1, z0) & 255];
+    i1 = Hash3D(seed, x0, y1, z0) & 255;
+    i2 = Hash3D(seed, x1, y1, z0) & 255;
+
+    float lx1x = Lerp(CELL_3D_X[i1], CELL_3D_X[i2], xs);
+    float ly1x = Lerp(CELL_3D_Y[i1], CELL_3D_Y[i2], xs);
+    float lz1x = Lerp(CELL_3D_Z[i1], CELL_3D_Z[i2], xs);
+
+    float lx0y = Lerp(lx0x, lx1x, ys);
+    float ly0y = Lerp(ly0x, ly1x, ys);
+    float lz0y = Lerp(lz0x, lz1x, ys);
+
+    //vec0 = CELL_3D[Hash3D(seed, x0, y0, z1) & 255];
+    //vec1 = CELL_3D[Hash3D(seed, x1, y0, z1) & 255];
+    i1 = Hash3D(seed, x0, y0, z1) & 255;
+    i2 = Hash3D(seed, x1, y0, z1) & 255;
+
+    lx0x = Lerp(CELL_3D_X[i1], CELL_3D_X[i2], xs);
+    ly0x = Lerp(CELL_3D_Y[i1], CELL_3D_Y[i2], xs);
+    lz0x = Lerp(CELL_3D_Z[i1], CELL_3D_Z[i2], xs);
+
+    //vec0 = CELL_3D[Hash3D(seed, x0, y1, z1) & 255];
+    //vec1 = CELL_3D[Hash3D(seed, x1, y1, z1) & 255];
+    i1 = Hash3D(seed, x0, y1, z1) & 255;
+    i2 = Hash3D(seed, x1, y1, z1) & 255;
+
+    lx1x = Lerp(CELL_3D_X[i1], CELL_3D_X[i2], xs);
+    ly1x = Lerp(CELL_3D_Y[i1], CELL_3D_Y[i2], xs);
+    lz1x = Lerp(CELL_3D_Z[i1], CELL_3D_Z[i2], xs);
+
+    *x += Lerp(lx0y, Lerp(lx0x, lx1x, ys), zs) * perturbAmp;
+    *y += Lerp(ly0y, Lerp(ly0x, ly1x, ys), zs) * perturbAmp;
+    *z += Lerp(lz0y, Lerp(lz0x, lz1x, ys), zs) * perturbAmp;
+}
+
+void Perturb3(float m_perturbAmp, float m_frequency,
+    int m_interp,
+    int m_seed,
+    float *x, float *y, float *z)
+{
+	SinglePerturb3(m_interp, m_seed, m_perturbAmp, m_frequency, x, y, z);
+}
+
+void PerturbFractal3(float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain,
+    int m_interp,
+    int m_seed,
+    float *x, float *y, float *z)
+{
+    int seed = m_seed;
+	float amp = m_perturbAmp * m_fractalBounding;
+	float freq = m_frequency;
+	int i = 0;
+
+	SinglePerturb3(m_interp, seed, amp, m_frequency, x, y, z);
+
+	while (++i < m_octaves)
+	{
+		freq *= m_lacunarity;
+		amp *= m_gain;
+		SinglePerturb3(m_interp, ++seed, amp, freq, x, y, z);
+	}
+}
+
+//2D
+void SinglePerturb2(int m_interp,
+    int seed,
+    float perturbAmp, float frequency, float *x, float *y)
+{
+	float xf = *x * frequency;
+    float yf = *y * frequency;
+
+    int x0 = FastFloor(xf);
+    int y0 = FastFloor(yf);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+
+    float xs, ys;
+    switch (m_interp)
+    {
+        default:
+        case 0:
+            xs = xf - x0;
+            ys = yf - y0;
+            break;
+        case 1:
+            xs = InterpHermiteFunc(xf - x0);
+            ys = InterpHermiteFunc(yf - y0);
+            break;
+        case 2:
+            xs = InterpQuinticFunc(xf - x0);
+            ys = InterpQuinticFunc(yf - y0);
+            break;
+    }
+
+    //Float2 vec0 = CELL_2D[Hash2D(seed, x0, y0) & 255];
+    //Float2 vec1 = CELL_2D[Hash2D(seed, x1, y0) & 255];
+    ulong i1 = Hash2D(seed, x0, y0) & 255;
+    ulong i2 = Hash2D(seed, x1, y0) & 255;
+
+    float lx0x = Lerp(CELL_2D_X[i1], CELL_2D_X[i2], xs);
+    float ly0x = Lerp(CELL_2D_Y[i1], CELL_2D_Y[i2], xs);
+
+    //vec0 = CELL_2D[Hash2D(seed, x0, y1) & 255];
+    //vec1 = CELL_2D[Hash2D(seed, x1, y1) & 255];
+    i1 = Hash2D(seed, x0, y1) & 255;
+    i2 = Hash2D(seed, x1, y1) & 255;
+
+    float lx1x = Lerp(CELL_2D_X[i1], CELL_2D_X[i2], xs);
+    float ly1x = Lerp(CELL_2D_Y[i1], CELL_2D_Y[i2], xs);
+
+    *x += Lerp(lx0x, lx1x, ys) * perturbAmp;
+    *y += Lerp(ly0x, ly1x, ys) * perturbAmp;
+}
+
+void Perturb2(float m_perturbAmp, float m_frequency,
+    int m_interp,
+    int m_seed,
+    float *x, float *y)
+{
+	SinglePerturb2(m_interp, m_seed, m_perturbAmp, m_frequency, x, y);
+}
+
+void PerturbFractal2(float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain,
+    int m_interp,
+    int m_seed,
+    float *x, float *y)
+{
+    int seed = m_seed;
+	float amp = m_perturbAmp * m_fractalBounding;
+	float freq = m_frequency;
+	int i = 0;
+
+	SinglePerturb2(m_interp, seed, amp, m_frequency, x, y);
+
+	while (++i < m_octaves)
+	{
+		freq *= m_lacunarity;
+		amp *= m_gain;
+		SinglePerturb2(m_interp, ++seed, amp, freq, x, y);
+	}
+}
 
 
 //Kernels
@@ -1782,7 +2052,7 @@ float GetCellular2(float m_frequency,
 __kernel void GEN_Value2(
     float m_frequency,              // |
     int m_interp,                   // | IN : class members
-    __global uchar* m_perm,         // |
+    int m_seed,                     // |
 
     ulong size_x, ulong size_y,     // |
     float scale_x, float scale_y,   // | IN : Parameters
@@ -1796,13 +2066,13 @@ __kernel void GEN_Value2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[i * size_x + j] = GetValue2(m_frequency, m_interp, m_perm, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetValue2(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
 }
 __kernel void GEN_ValueFractal2(
     int m_fractalType, float m_frequency,                                      // |
     float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
-    __global uchar* m_perm,                                                    // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y,                                                // |
     float scale_x, float scale_y,                                              // | IN : Parameters
@@ -1816,12 +2086,12 @@ __kernel void GEN_ValueFractal2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetValueFractal2(m_fractalType, m_frequency, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, i * scale_x + offset_x, j * scale_y + offset_y);
+    noise[index] = GetValueFractal2(m_fractalType, m_frequency, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
 }
 __kernel void GEN_Perlin2(
     float m_frequency,                                // |
     int m_interp,                                     // | IN : class members
-    __global uchar* m_perm, __global uchar* m_perm12, // |
+    int m_seed,                                       // |
 
     ulong size_x, ulong size_y,                       // |
     float scale_x, float scale_y,                     // | IN : Parameters
@@ -1835,13 +2105,13 @@ __kernel void GEN_Perlin2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetPerlin2(m_frequency, m_interp, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetPerlin2(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
 }
 __kernel void GEN_PerlinFractal2(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
-    __global uchar* m_perm,  __global uchar* m_perm12,                         // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y,                                                // |
     float scale_x, float scale_y,                                              // | IN : Parameters
@@ -1855,11 +2125,11 @@ __kernel void GEN_PerlinFractal2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetPerlinFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y + offset_y);
+    noise[index] = GetPerlinFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
 }
 __kernel void GEN_Simplex2(
     float m_frequency,                                // |
-    __global uchar* m_perm, __global uchar* m_perm12, // | IN : class members
+    int m_seed,                                       // | IN : class members
 
     ulong size_x, ulong size_y,                       // |
     float scale_x, float scale_y,                     // | IN : Parameters
@@ -1873,12 +2143,12 @@ __kernel void GEN_Simplex2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetSimplex2(m_frequency, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetSimplex2(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
 }
 __kernel void GEN_SimplexFractal2(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    __global uchar* m_perm,  __global uchar* m_perm12,                         // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y,                                                // |
     float scale_x, float scale_y,                                              // | IN : Parameters
@@ -1892,12 +2162,12 @@ __kernel void GEN_SimplexFractal2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetSimplexFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y + offset_y);
+    noise[index] = GetSimplexFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, i * scale_x + offset_x, j * scale_y + offset_y);
 }
 __kernel void GEN_Cellular2(
     float m_frequency,                                        // |
     int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    __global uchar* m_perm, int m_seed,                       // |
+    int m_seed,                                               // |
 
     ulong size_x, ulong size_y,                               // |
     float scale_x, float scale_y,                             // | IN : Parameters
@@ -1911,7 +2181,7 @@ __kernel void GEN_Cellular2(
     size_t j = index - i * size_x;
 
     //Calculate value
-    noise[index] = GetCellular2(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
+    noise[index] = GetCellular2(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y);
 }
 __kernel void GEN_WhiteNoise2(
     int m_seed,                     // IN : class members
@@ -1953,7 +2223,7 @@ __kernel void GEN_WhiteNoiseInt2(
 __kernel void GEN_Value3(
     float m_frequency,                              // |
     int m_interp,                                   // | IN : class members
-    __global uchar* m_perm,                         // |
+    int m_seed,                                     // |
 
     ulong size_x, ulong size_y, ulong size_z,       // |
     float scale_x, float scale_y, float scale_z,    // | IN : Parameters
@@ -1968,13 +2238,13 @@ __kernel void GEN_Value3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetValue3(m_frequency, m_interp, m_perm, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z  + offset_z);
+    noise[index] = GetValue3(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z  + offset_z);
 }
 __kernel void GEN_ValueFractal3(
     float m_frequency, int m_fractalType,                                      // |
     float m_lacunarity, float m_gain, int m_octaves, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
-    __global uchar* m_perm,                                                    // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y, ulong size_z,                                  // |
     float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
@@ -1989,12 +2259,12 @@ __kernel void GEN_ValueFractal3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetValueFractal3(m_frequency, m_fractalType, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
+    noise[index] = GetValueFractal3(m_frequency, m_fractalType, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_Perlin3(
     float m_frequency,                                // |
     int m_interp,                                     // | IN : class members
-    __global uchar* m_perm, __global uchar* m_perm12, // |
+    int m_seed,                                       // |
 
     ulong size_x, ulong size_y, ulong size_z,         // |
     float scale_x, float scale_y, float scale_z,      // | IN : Parameters
@@ -2009,13 +2279,13 @@ __kernel void GEN_Perlin3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[i * size_x * size_y + j * size_y + k] = GetPerlin3(m_frequency, m_interp, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+    noise[index] = GetPerlin3(m_frequency, m_interp, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_PerlinFractal3(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // |
     int m_interp,                                                              // | IN : class members
-    __global uchar* m_perm,  __global uchar* m_perm12,                         // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y, ulong size_z,                                  // |
     float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
@@ -2030,11 +2300,11 @@ __kernel void GEN_PerlinFractal3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetPerlinFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
+    noise[index] = GetPerlinFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_Simplex3(
     float m_frequency,                                // |
-    __global uchar* m_perm, __global uchar* m_perm12, // | IN : class members
+    int m_seed,                                       // | IN : class members
 
     ulong size_x, ulong size_y, ulong size_z,         // |
     float scale_x, float scale_y, float scale_z,      // | IN : Parameters
@@ -2049,12 +2319,12 @@ __kernel void GEN_Simplex3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetSimplex3(m_frequency, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+    noise[index] = GetSimplex3(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_SimplexFractal3(
     float m_frequency, int m_fractalType,                                      // |
     int m_octaves, float m_lacunarity, float m_gain, float m_fractalBounding,  // | IN : class members
-    __global uchar* m_perm,  __global uchar* m_perm12,                         // |
+    int m_seed,                                                                // |
 
     ulong size_x, ulong size_y, ulong size_z,                                  // |
     float scale_x, float scale_y, float scale_z,                               // | IN : Parameters
@@ -2069,12 +2339,12 @@ __kernel void GEN_SimplexFractal3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetSimplexFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
+    noise[index] = GetSimplexFractal3(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_seed, i * scale_x + offset_x, j * scale_y + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_Cellular3(
     float m_frequency,                                        // |
     int m_cellularDistanceFunction, int m_cellularReturnType, // | IN : class members
-    __global uchar* m_perm, int m_seed,                       // |
+    int m_seed,                                               // |
 
     ulong size_x, ulong size_y, ulong size_z,                 // |
     float scale_x, float scale_y, float scale_z,              // | IN : Parameters
@@ -2089,7 +2359,7 @@ __kernel void GEN_Cellular3(
     size_t j = index - k * size_x * size_y - i * size_x;
 
     //Calculate value
-    noise[index] = GetCellular3(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+    noise[index] = GetCellular3(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
 }
 __kernel void GEN_WhiteNoise3(
     int m_seed,                                     // IN : class members
@@ -2132,7 +2402,7 @@ __kernel void GEN_WhiteNoiseInt3(
 //4D
 __kernel void GEN_Simplex4(
     float m_frequency,                                              // |
-    __global uchar* m_perm,                                         // | IN : class members
+    int m_seed,                                                     // | IN : class members
 
     ulong size_x, ulong size_y, ulong size_z, ulong size_w,         // |
     float scale_x, float scale_y, float scale_z, float scale_w,     // | IN : Parameters
@@ -2148,7 +2418,7 @@ __kernel void GEN_Simplex4(
     size_t j = index - w * size_x * size_y * size_z - k * size_y * size_x - i * size_x;
 
     //Calculate value
-    noise[index] = GetSimplex4(m_frequency, m_perm, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
+    noise[index] = GetSimplex4(m_frequency, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
 }
 __kernel void GEN_WhiteNoise4(
     int m_seed,                                                     // IN : class members
@@ -2188,5 +2458,415 @@ __kernel void GEN_WhiteNoiseInt4(
     //Calculate value
     noise[index] = GetWhiteNoiseInt4(m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z, w * scale_w + offset_w);
 }
+
+/*//Perturb
+//2D
+__kernel void DO_Perturb2(
+    float m_perturbAmp, float m_frequency,        // |
+    int m_interp,                                 // | IN : class members
+    __global uchar* m_perm,                       // |
+
+    ulong size_m,                                 // IN : Parameters
+
+    __global float* arr_x, __global float* arr_y) // IN-OUT : Noise matrices
+{
+    // Get Indexes
+    size_t i = get_global_id(0);
+
+    //Apply perturb
+    Perturb2(m_perturbAmp, m_frequency, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]));
+
+}
+
+__kernel void DO_PerturbFractal2(
+    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
+    int m_interp,                                                                                                    // | IN : class members
+    __global uchar* m_perm,                                                                                          // |
+
+    ulong size_m,                                                                                                    // IN : Parameters
+
+    __global float* arr_x, __global float* arr_y)                                                                    // IN-OUT : Noise matrices
+{
+    // Get Indexes
+    size_t i = get_global_id(0);
+
+    //Apply perturb
+    PerturbFractal2(m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]));
+}
+
+//3D
+__kernel void DO_Perturb3(
+    float m_perturbAmp, float m_frequency,                               // |
+    int m_interp,                                                        // | IN : class members
+    __global uchar* m_perm,                                              // |
+
+    ulong size_m,                                                        // IN : Parameters
+
+    __global float* arr_x, __global float* arr_y, __global float* arr_z) // IN-OUT : Noise matrices
+{
+    // Get Indexes
+    size_t i = get_global_id(0);
+
+    //Apply perturb
+    Perturb3(m_perturbAmp, m_frequency, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]), &(arr_z[i]));
+
+}
+
+__kernel void DO_PerturbFractal3(
+    float m_perturbAmp, float m_fractalBounding, float m_frequency, int m_octaves, float m_lacunarity, float m_gain, // |
+    int m_interp,                                                                                                    // | IN : class members
+    __global uchar* m_perm,                                                                                          // |
+
+    ulong size_m,                                                                                                    // IN : Parameters
+
+    __global float* arr_x, __global float* arr_y, __global float* arr_z)                                             // IN-OUT : Noise matrices
+{
+    // Get Indexes
+    size_t i = get_global_id(0);
+
+    //Apply perturb
+    PerturbFractal3(m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain, m_interp, m_perm, &(arr_x[i]), &(arr_y[i]), &(arr_z[i]));
+}*/
+
+
+/*//NoiseLookup
+void SingleCellular2L(int m_cellularDistanceFunction,
+    __global uchar* m_perm, int m_seed,
+    float *x, float *y)
+{
+	int xr = FastRound(*x);
+	int yr = FastRound(*y);
+
+	float distance = 999999.f;
+	int xc, yc;
+
+	switch (m_cellularDistanceFunction)
+	{
+	default:
+	case 0:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+
+				float vecX = xi - *x + CELL_2D_X[lutPos];
+				float vecY = yi - *y + CELL_2D_Y[lutPos];
+
+				float newDistance = vecX * vecX + vecY * vecY;
+
+				if (newDistance < distance)
+				{
+					distance = newDistance;
+					xc = xi;
+					yc = yi;
+				}
+			}
+		}
+		break;
+	case 1:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+
+				float vecX = xi - *x + CELL_2D_X[lutPos];
+				float vecY = yi - *y + CELL_2D_Y[lutPos];
+
+				float newDistance = (FastAbs(vecX) + FastAbs(vecY));
+
+				if (newDistance < distance)
+				{
+					distance = newDistance;
+					xc = xi;
+					yc = yi;
+				}
+			}
+		}
+		break;
+	case 2:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				unsigned char lutPos = Index2D_256(m_perm, 0, xi, yi);
+
+				float vecX = xi - *x + CELL_2D_X[lutPos];
+				float vecY = yi - *y + CELL_2D_Y[lutPos];
+
+				float newDistance = (FastAbs(vecX) + FastAbs(vecY)) + (vecX * vecX + vecY * vecY);
+
+				if (newDistance < distance)
+				{
+					distance = newDistance;
+					xc = xi;
+					yc = yi;
+				}
+			}
+		}
+		break;
+	}
+
+	unsigned char lutPos;
+    lutPos = Index2D_256(m_perm, 0, xc, yc);
+    *x = xc + CELL_2D_X[lutPos];
+    *y = yc + CELL_2D_Y[lutPos];
+}
+float SingleCellular3L(int m_cellularDistanceFunction
+    __global uchar* m_perm, int m_seed,
+    float *x, float *y, float *z)
+{
+	int xr = FastRound(*x);
+	int yr = FastRound(*y);
+	int zr = FastRound(*z);
+
+	float distance = 999999.f;
+	int xc, yc, zc;
+
+	switch (m_cellularDistanceFunction)
+	{
+	case 0:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				for (int zi = zr - 1; zi <= zr + 1; zi++)
+				{
+					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+
+					float vecX = xi - *x + CELL_3D_X[lutPos];
+					float vecY = yi - *y + CELL_3D_Y[lutPos];
+					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+
+					float newDistance = vecX * vecX + vecY * vecY + vecZ * vecZ;
+
+					if (newDistance < distance)
+					{
+						distance = newDistance;
+						xc = xi;
+						yc = yi;
+						zc = zi;
+					}
+				}
+			}
+		}
+		break;
+	case 1:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				for (int zi = zr - 1; zi <= zr + 1; zi++)
+				{
+					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+
+					float vecX = xi - *x + CELL_3D_X[lutPos];
+					float vecY = yi - *y + CELL_3D_Y[lutPos];
+					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+
+					float newDistance = FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ);
+
+					if (newDistance < distance)
+					{
+						distance = newDistance;
+						xc = xi;
+						yc = yi;
+						zc = zi;
+					}
+				}
+			}
+		}
+		break;
+	case 2:
+		for (int xi = xr - 1; xi <= xr + 1; xi++)
+		{
+			for (int yi = yr - 1; yi <= yr + 1; yi++)
+			{
+				for (int zi = zr - 1; zi <= zr + 1; zi++)
+				{
+					unsigned char lutPos = Index3D_256(m_perm, 0, xi, yi, zi);
+
+					float vecX = xi - *x + CELL_3D_X[lutPos];
+					float vecY = yi - *y + CELL_3D_Y[lutPos];
+					float vecZ = zi - *z + CELL_3D_Z[lutPos];
+
+					float newDistance = (FastAbs(vecX) + FastAbs(vecY) + FastAbs(vecZ)) + (vecX * vecX + vecY * vecY + vecZ * vecZ);
+
+					if (newDistance < distance)
+					{
+						distance = newDistance;
+						xc = xi;
+						yc = yi;
+						zc = zi;
+					}
+				}
+			}
+		}
+		break;
+	default:
+		break;
+	}
+
+	unsigned char lutPos;
+    lutPos = Index3D_256(m_perm, 0, xc, yc, zc);
+    *x = xc + CELL_3D_X[lutPos];
+    *y = yc + CELL_3D_Y[lutPos];
+    *z = zc + CELL_3D_Z[lutPos];
+}*/
+
+/*
+Noise Types:
+    0  - Value2
+    1  - ValueFractal2
+    2  - Perlin2
+    3  - PerlinFractal2
+    4  - Simplex2
+    5  - SimplexFractal2
+    6  - Cellular2
+    7  - WhiteNoise2
+    8  - WhiteNoiseInt2
+    9  - Value3
+    10 - ValueFractal3
+    11 - Perlin3
+    12 - PerlinFractal3
+    13 - Simplex3
+    14 - SimplexFractal3
+    15 - Cellular3
+    16 - WhiteNoise3
+    17 - WhiteNoiseInt3
+    18 - Simplex4
+    19 - WhiteNoise4
+    20 - WhiteNoiseInt4
+    21 - Lookup_Cellular2
+    22 - Lookup_Cellular3
+*/
+
+/*__kernel void GEN_Lookup_Cellular2(
+    float m_perturbAmp, float m_fractalBounding,              // |
+    int m_octaves, float m_lacunarity,                        // |
+    float m_frequency, float m_gain,                          // |
+                                                              // |
+    int m_interp, int m_fractalType,                          // | IN : class members
+    int m_cellularDistanceFunction, int m_cellularReturnType, // |
+                                                              // |
+    __global uchar* m_perm, __global uchar* m_perm12,         // |
+    int m_seed,                                               // |
+
+    ulong size_x, ulong size_y,                               // |
+    float scale_x, float scale_y,                             // |
+    float offset_x, float offset_y,                           // | IN : Parameters
+    __global int* noise_types, ulong lookup_length,           // |
+
+    __global float* noise)                                    // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t i = index / size_x;
+    size_t j = index - i * size_x;
+
+    //Calculate x and y
+    float x = i * scale_x + offset_x;
+    float y = i * scale_y + offset_y;
+
+    x *= m_frequency;
+    y *= m_frequency;
+
+    //Calculate value
+    int err = 0;
+    for (ulong i = 0; i < lookup_length; i++) {
+        switch(noise_types[i]) {
+        case 0:
+            noise[index] = GetValue2(m_frequency, m_interp, m_perm, x, y);
+            return;
+            break;
+        case 1:
+            noise[index] = GetValueFractal2(m_fractalType, m_frequency, m_lacunarity, m_gain, m_octaves, m_fractalBounding, m_interp, m_perm, x, y);
+            return;
+            break;
+        case 2:
+            noise[index] = GetPerlin2(m_frequency, m_interp, m_perm, m_perm12, x, y);
+            return;
+            break;
+        case 3:
+            noise[index] = GetPerlinFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_interp, m_perm, m_perm12, x, y);
+            return;
+            break;
+        case 4:
+            noise[index] = GetSimplex2(m_frequency, m_perm, m_perm12, x, y);
+            return;
+            break;
+        case 5:
+            noise[index] = GetSimplexFractal2(m_frequency, m_fractalType, m_octaves, m_lacunarity, m_gain, m_fractalBounding, m_perm, m_perm12, x, y);
+            return;
+            break;
+        case 6:
+            noise[index] = GetCellular2(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, x, y);
+            return;
+            break;
+        case 7:
+            noise[index] = GetWhiteNoise2(m_seed, x, y);
+            return;
+            break;
+        case 8:
+            noise[index] = GetWhiteNoiseInt2(m_seed, cast_int(x), cast_int(y));
+            return;
+            break;
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 18:
+        case 19:
+        case 20:
+            err = 1;
+            break;
+        case 21:
+            void SingleCellular2L(m_cellularDistanceFunction, m_perm, m_seed, &x, &y);
+            break;
+        case 22:
+            err = 2;
+            break;
+        }
+        if (err != 0) {
+            noise[index] = 0.0f;
+            break;
+        }
+    }
+}
+
+__kernel void GEN_Lookup_Cellular3(
+    float m_perturbAmp, float m_fractalBounding,              // |
+    int m_octaves, float m_lacunarity,                        // |
+    float m_frequency, float m_gain,                          // |
+                                                              // |
+    int m_interp, int m_fractalType,                          // | IN : class members
+    int m_cellularDistanceFunction, int m_cellularReturnType, // |
+                                                              // |
+    __global uchar* m_perm, __global uchar* m_perm12,         // |
+    int m_seed,                                               // |
+
+    ulong size_x, ulong size_y, ulong size_z,                 // |
+    float scale_x, float scale_y, float scale_z,              // |
+    float offset_x, float offset_y, float offset_z,           // | IN : Parameters
+    __global int* noise_types, ulong lookup_length,           // |
+
+    __global float* noise)                                    // OUT : Noise matrix
+{
+    // Get Indexes
+    size_t index = get_global_id(0);
+    size_t k = index / (size_x * size_y);
+    size_t i = (index - k * size_x * size_y) / size_x;
+    size_t j = index - k * size_x * size_y - i * size_x;
+
+    //Calculate value
+    noise[index] = GetCellular3(m_frequency, m_cellularDistanceFunction, m_cellularReturnType, m_perm, m_seed, i * scale_x + offset_x, j * scale_y  + offset_y, k * scale_z + offset_z);
+}*/
+
 
 )===="

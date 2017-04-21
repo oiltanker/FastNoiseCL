@@ -149,9 +149,8 @@ public:
 
 	float* GetNoise(Range x, Range y);
 
-	//I don't rally know man
-	/*void Perturb(float& x, float& y);
-	void PerturbFractal(float& x, float& y);*/
+	//void Perturb(float* x, float* y, size_t size_m);
+	//void PerturbFractal(float* x, float* y, size_t size_m);
 
 	//3D
 	float* GetValue(Range x, Range y, Range z);
@@ -170,9 +169,8 @@ public:
 
 	float* GetNoise(Range x, Range y, Range z);
 
-	//I don't rally know man
-	/*void Perturb(float& x, float& y, float& z);
-	void PerturbFractal(float& x, float& y, float& z);*/
+	//void Perturb(float* x, float* y, float* z, size_t size_m);
+	//void PerturbFractal(float* x, float* y, float* z, size_t size_m);
 
 	//4D
 	float* GetSimplex(Range x, Range y, Range z, Range w);
@@ -181,8 +179,8 @@ public:
 	float* GetWhiteNoiseInt(RangeInt x, RangeInt y, RangeInt z, RangeInt w);
 
 protected:
-	unsigned char m_perm[512];
-	unsigned char m_perm12[512];
+	/*unsigned char m_perm[512];
+	unsigned char m_perm12[512];*/
 
 	int m_seed = 1337;
 	float m_frequency = 0.01f;
