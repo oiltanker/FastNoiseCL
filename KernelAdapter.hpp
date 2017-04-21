@@ -184,10 +184,23 @@ public:
         int offset_x, int offset_y, int offset_z, int offset_w      // |
     );
 
+    //NoiseLookup
+    float* GEN_Lookup_Cellular2(
+        Snapshot* params, size_t size_p, // IN : members of all classes
+
+        size_t size_x, size_t size_y,    // |
+        float scale_x, float scale_y,    // | IN : Parameters
+        float offset_x, float offset_y   // |
+    );
+    float* GEN_Lookup_Cellular3(
+        Snapshot* params, size_t size_p,               // IN : members of all classes
+
+        size_t size_x, size_t size_y, size_t size_z,   // |
+        float scale_x, float scale_y, float scale_z,   // | IN : Parameters
+        float offset_x, float offset_y, float offset_z // |
+    );
+
 private:
     class impl;
     std::unique_ptr<impl> pimpl;
-    //std::unique_ptr<cl::Device> device = nullptr;
-    //cl::Context context;
-    //cl::Kernel* kernels = nullptr;
 };

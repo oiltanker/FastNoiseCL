@@ -29,6 +29,7 @@
 #include <math.h>
 #include <assert.h>
 #include <random>
+#include <vector>
 
 void FastNoiseCL::SetSeed(int seed)
 {
@@ -100,13 +101,38 @@ float* FastNoiseCL::GetSimplexFractal(Range x, Range y) {
 }
 
 float* FastNoiseCL::GetCellular(Range x, Range y) {
-    return kernel_adapter->GEN_Cellular2(
-        CreateSnapshot(),
+    if (m_cellularReturnType != NoiseLookup) {
+        return kernel_adapter->GEN_Cellular2(
+            CreateSnapshot(),
 
-        x.size, y.size,
-        x.step, y.step,
-        x.offset, y.offset
-    );
+            x.size, y.size,
+            x.step, y.step,
+            x.offset, y.offset
+        );
+    } else {
+        NoiseType t = m_noiseType;
+        m_noiseType = Cellular;
+        std::vector<Snapshot> params;
+        FastNoiseCL* fnp = this;
+
+        while (fnp != nullptr) {
+            Snapshot s = fnp->CreateSnapshot();
+            s.m_noiseType = 6;
+            params.push_back(s);
+            fnp = fnp->m_cellularNoiseLookup;
+        }
+
+
+        m_noiseType = t;
+
+        return kernel_adapter->GEN_Lookup_Cellular2(
+            params.data(), params.size(),
+
+            x.size, y.size,
+            x.step, y.step,
+            x.offset, y.offset
+        );
+    }
 }
 
 float* FastNoiseCL::GetWhiteNoise(Range x, Range y) {
@@ -189,13 +215,37 @@ float* FastNoiseCL::GetSimplexFractal(Range x, Range y, Range z) {
 }
 
 float* FastNoiseCL::GetCellular(Range x, Range y, Range z) {
-    return kernel_adapter->GEN_Cellular3(
-        CreateSnapshot(),
+    if (m_cellularReturnType != NoiseLookup) {
+        return kernel_adapter->GEN_Cellular3(
+            CreateSnapshot(),
 
-        x.size, y.size, z.size,
-        x.step, y.step, z.step,
-        x.offset, y.offset, z.offset
-    );
+            x.size, y.size, z.size,
+            x.step, y.step, z.step,
+            x.offset, y.offset, z.offset
+        );
+    } else {
+        NoiseType t = m_noiseType;
+        m_noiseType = Cellular;
+        std::vector<Snapshot> params;
+        FastNoiseCL* fnp = this;
+
+        while (fnp != nullptr) {
+            Snapshot s = fnp->CreateSnapshot();
+            params.push_back(s);
+            fnp = fnp->m_cellularNoiseLookup;
+        }
+
+
+        m_noiseType = t;
+
+        return kernel_adapter->GEN_Lookup_Cellular3(
+            params.data(), params.size(),
+
+            x.size, y.size, z.size,
+            x.step, y.step, z.step,
+            x.offset, y.offset, z.offset
+        );
+    }
 }
 
 float* FastNoiseCL::GetWhiteNoise(Range x, Range y, Range z) {

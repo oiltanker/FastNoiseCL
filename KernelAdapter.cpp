@@ -88,7 +88,7 @@ const char *getErrorString(cl_int error) {
 const string src =
     #include "FastNoise.cl"
 ;
-#define KERNEL_COUNT 21
+#define KERNEL_COUNT 23
 const char* kernel_names[KERNEL_COUNT] = {
     "GEN_Value2",
     "GEN_ValueFractal2",
@@ -110,7 +110,9 @@ const char* kernel_names[KERNEL_COUNT] = {
     "GEN_WhiteNoiseInt3",
     "GEN_Simplex4",
     "GEN_WhiteNoise4",
-    "GEN_WhiteNoiseInt4"
+    "GEN_WhiteNoiseInt4",
+    "GEN_Lookup_Cellular2",
+    "GEN_Lookup_Cellular3"
 };
 enum Kernel {
     VALUE2 = 0,
@@ -133,7 +135,9 @@ enum Kernel {
     WHITENOISEINT3 = 17,
     SIMPLEX4 = 18,
     WHITENOISE4 = 19,
-    WHITENOISEINT4 = 20
+    WHITENOISEINT4 = 20,
+    LOOKUP_CELLULAR2 = 21,
+    LOOKUP_CELLULAR3 = 22
 };
 
 //Initialize
@@ -520,4 +524,92 @@ float* KernelAdapter::GEN_WhiteNoiseInt4(
 ) {
     cl::Kernel kernel(pimpl->kernels[WHITENOISEINT4]);
     return exec_kernel_4D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
+}
+
+
+//NoiseLookup
+float* KernelAdapter::GEN_Lookup_Cellular2(
+    Snapshot* params, size_t size_p, // IN : members of all classes
+
+    size_t size_x, size_t size_y,    // |
+    float scale_x, float scale_y,    // | IN : Parameters
+    float offset_x, float offset_y   // |
+) {
+    //Configure stuff
+    cl_int err;
+    size_t msize = size_x * size_y;
+
+    //Get CL objects
+    cl::Kernel kernel(pimpl->kernels[LOOKUP_CELLULAR2]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
+
+    //Create buffers
+    cl::Buffer buf_param(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(Snapshot) * size_p, params, &err);
+    assert(err == CL_SUCCESS);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    assert(err == CL_SUCCESS);
+
+    //Prepare kernel
+    kernel.setArg(0, buf_param);
+    kernel.setArg(1, sizeof(size_t), &size_p);
+    kernel.setArg(2, sizeof(size_t), &size_x);
+    kernel.setArg(3, sizeof(size_t), &size_y);
+    kernel.setArg(4, sizeof(float), &scale_x);
+    kernel.setArg(5, sizeof(float), &scale_y);
+    kernel.setArg(6, sizeof(float), &offset_x);
+    kernel.setArg(7, sizeof(float), &offset_y);
+    kernel.setArg(8, buf_result);
+
+    //Execute task
+    float* result = new float[msize];
+    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
+    assert(err == CL_SUCCESS);
+    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
+    assert(err == CL_SUCCESS);
+
+    return result;
+}
+float* KernelAdapter::GEN_Lookup_Cellular3(
+    Snapshot* params, size_t size_p,               // IN : members of all classes
+
+    size_t size_x, size_t size_y, size_t size_z,   // |
+    float scale_x, float scale_y, float scale_z,   // | IN : Parameters
+    float offset_x, float offset_y, float offset_z // |
+) {
+    //Configure stuff
+    cl_int err;
+    size_t msize = size_x * size_y * size_z;
+
+    //Get CL objects
+    cl::Kernel kernel(pimpl->kernels[LOOKUP_CELLULAR3]);
+    cl::CommandQueue cmd_queue(pimpl->context, *pimpl->device);
+
+    //Create buffers
+    cl::Buffer buf_param(pimpl->context, CL_MEM_COPY_HOST_PTR | CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY, sizeof(Snapshot) * size_p, params, &err);
+    assert(err == CL_SUCCESS);
+    cl::Buffer buf_result(pimpl->context, CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY, sizeof(float) * msize, nullptr, &err);
+    assert(err == CL_SUCCESS);
+
+    //Prepare kernel
+    kernel.setArg(0, buf_param);
+    kernel.setArg(1, sizeof(size_t), &size_p);
+    kernel.setArg(2, sizeof(size_t), &size_x);
+    kernel.setArg(3, sizeof(size_t), &size_y);
+    kernel.setArg(4, sizeof(size_t), &size_z);
+    kernel.setArg(5, sizeof(float), &scale_x);
+    kernel.setArg(6, sizeof(float), &scale_y);
+    kernel.setArg(7, sizeof(float), &scale_z);
+    kernel.setArg(8, sizeof(float), &offset_x);
+    kernel.setArg(9, sizeof(float), &offset_y);
+    kernel.setArg(10, sizeof(float), &offset_z);
+    kernel.setArg(11, buf_result);
+
+    //Execute task
+    float* result = new float[msize];
+    err = cmd_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(msize));
+    assert(err == CL_SUCCESS);
+    err = cmd_queue.enqueueReadBuffer(buf_result, CL_TRUE, 0, sizeof(float) * msize, result);
+    assert(err == CL_SUCCESS);
+
+    return result;
 }
