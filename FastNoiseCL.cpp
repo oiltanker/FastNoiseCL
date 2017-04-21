@@ -36,7 +36,7 @@ void FastNoiseCL::SetSeed(int seed)
 
 	std::mt19937 gen(seed);
 
-	for (int i = 0; i < 256; i++)
+	/*for (int i = 0; i < 256; i++)
 		m_perm[i] = i;
 
 	for (int j = 0; j < 256; j++)
@@ -47,7 +47,7 @@ void FastNoiseCL::SetSeed(int seed)
 		m_perm[j] = m_perm[j + 256] = m_perm[k];
 		m_perm[k] = l;
 		m_perm12[j] = m_perm12[j + 256] = m_perm[j] % 12;
-	}
+	}*/
 }
 
 //OpenCL generation
@@ -59,7 +59,7 @@ float* FastNoiseCL::GetValue(Range x, Range y) {
     return kernel_adapter->GEN_Value2(
         m_frequency,
         static_cast<int>(m_interp),
-        m_perm,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -71,7 +71,7 @@ float* FastNoiseCL::GetValueFractal(Range x, Range y) {
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
         static_cast<int>(m_interp),
-        m_perm,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -83,7 +83,7 @@ float* FastNoiseCL::GetPerlin(Range x, Range y) {
     return kernel_adapter->GEN_Perlin2(
         m_frequency,
         static_cast<int>(m_interp),
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -95,7 +95,7 @@ float* FastNoiseCL::GetPerlinFractal(Range x, Range y) {
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
         static_cast<int>(m_interp),
-        m_perm,  m_perm12,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -106,7 +106,7 @@ float* FastNoiseCL::GetPerlinFractal(Range x, Range y) {
 float* FastNoiseCL::GetSimplex(Range x, Range y) {
     return kernel_adapter->GEN_Simplex2(
         m_frequency,
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -117,7 +117,7 @@ float* FastNoiseCL::GetSimplexFractal(Range x, Range y) {
     return kernel_adapter->GEN_SimplexFractal2(
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -129,7 +129,7 @@ float* FastNoiseCL::GetCellular(Range x, Range y) {
     return kernel_adapter->GEN_Cellular2(
         m_frequency,
         static_cast<int>(m_cellularDistanceFunction), static_cast<int>(m_cellularReturnType),
-        m_perm, m_seed,
+        m_seed,
 
         x.size, y.size,
         x.step, y.step,
@@ -163,7 +163,7 @@ float* FastNoiseCL::GetValue(Range x, Range y, Range z) {
     return kernel_adapter->GEN_Value3(
         m_frequency,
         static_cast<int>(m_interp),
-        m_perm,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -175,7 +175,7 @@ float* FastNoiseCL::GetValueFractal(Range x, Range y, Range z) {
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
         static_cast<int>(m_interp),
-        m_perm,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -187,7 +187,7 @@ float* FastNoiseCL::GetPerlin(Range x, Range y, Range z) {
     return kernel_adapter->GEN_Perlin3(
         m_frequency,
         static_cast<int>(m_interp),
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -199,7 +199,7 @@ float* FastNoiseCL::GetPerlinFractal(Range x, Range y, Range z) {
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
         static_cast<int>(m_interp),
-        m_perm,  m_perm12,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -210,7 +210,7 @@ float* FastNoiseCL::GetPerlinFractal(Range x, Range y, Range z) {
 float* FastNoiseCL::GetSimplex(Range x, Range y, Range z) {
     return kernel_adapter->GEN_Simplex3(
         m_frequency,
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -221,7 +221,7 @@ float* FastNoiseCL::GetSimplexFractal(Range x, Range y, Range z) {
     return kernel_adapter->GEN_SimplexFractal3(
         m_frequency, static_cast<int>(m_fractalType),
         m_octaves, m_lacunarity, m_gain, m_fractalBounding,
-        m_perm, m_perm12,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -233,7 +233,7 @@ float* FastNoiseCL::GetCellular(Range x, Range y, Range z) {
     return kernel_adapter->GEN_Cellular3(
         m_frequency,
         static_cast<int>(m_cellularDistanceFunction), static_cast<int>(m_cellularReturnType),
-        m_perm, m_seed,
+        m_seed,
 
         x.size, y.size, z.size,
         x.step, y.step, z.step,
@@ -266,7 +266,7 @@ float* FastNoiseCL::GetWhiteNoiseInt(RangeInt x, RangeInt y, RangeInt z) {
 float* FastNoiseCL::GetSimplex(Range x, Range y, Range z, Range w) {
     return kernel_adapter->GEN_Simplex4(
         m_frequency,
-        m_perm,
+        m_seed,
 
         x.size, y.size, z.size, w.size,
         x.step, y.step, z.step, w.step,
@@ -292,6 +292,56 @@ float* FastNoiseCL::GetWhiteNoiseInt(RangeInt x, RangeInt y, RangeInt z, RangeIn
         x.offset, y.offset, z.offset, w.offset
     );
 }
+
+/*//Perturb
+//2D
+void FastNoiseCL::Perturb(float* x, float* y, size_t size_m) {
+    kernel_adapter->DO_Perturb2(
+        m_perturbAmp, m_frequency,
+        static_cast<int>(m_interp),
+        m_perm,
+
+        size_m,
+
+        x, y
+    );
+}
+void FastNoiseCL::PerturbFractal(float* x, float* y, size_t size_m) {
+    kernel_adapter->DO_PerturbFractal2(
+        m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain,
+        static_cast<int>(m_interp),
+        m_perm,
+
+        size_m,
+
+        x, y
+    );
+}
+
+//3D
+void FastNoiseCL::Perturb(float* x, float* y, float* z, size_t size_m) {
+    kernel_adapter->DO_Perturb3(
+        m_perturbAmp, m_frequency,
+        static_cast<int>(m_interp),
+        m_perm,
+
+        size_m,
+
+        x, y, z
+    );
+}
+void FastNoiseCL::PerturbFractal(float* x, float* y, float* z, size_t size_m) {
+    kernel_adapter->DO_PerturbFractal3(
+        m_perturbAmp, m_fractalBounding, m_frequency, m_octaves, m_lacunarity, m_gain,
+        static_cast<int>(m_interp),
+        m_perm,
+
+        size_m,
+
+        x, y, z
+    );
+}*/
+
 
 void FastNoiseCL::PrepareDevice(Device& device) {
     kernel_adapter = std::unique_ptr<KernelAdapter>(new KernelAdapter(device));
