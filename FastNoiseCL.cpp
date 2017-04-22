@@ -31,8 +31,6 @@
 #include <random>
 #include <vector>
 
-#include <iostream>
-
 void FastNoiseCL::SetSeed(int seed)
 {
 	m_seed = seed;
