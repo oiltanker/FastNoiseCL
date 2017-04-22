@@ -110,20 +110,15 @@ float* FastNoiseCL::GetCellular(Range x, Range y) {
             x.offset, y.offset
         );
     } else {
-        NoiseType t = m_noiseType;
-        m_noiseType = Cellular;
         std::vector<Snapshot> params;
         FastNoiseCL* fnp = this;
 
         while (fnp != nullptr) {
             Snapshot s = fnp->CreateSnapshot();
-            s.m_noiseType = 6;
             params.push_back(s);
             fnp = fnp->m_cellularNoiseLookup;
         }
-
-
-        m_noiseType = t;
+        params[0].m_noiseType = static_cast<int>(Cellular);
 
         return kernel_adapter->GEN_Lookup_Cellular2(
             params.data(), params.size(),
@@ -224,8 +219,6 @@ float* FastNoiseCL::GetCellular(Range x, Range y, Range z) {
             x.offset, y.offset, z.offset
         );
     } else {
-        NoiseType t = m_noiseType;
-        m_noiseType = Cellular;
         std::vector<Snapshot> params;
         FastNoiseCL* fnp = this;
 
@@ -234,9 +227,7 @@ float* FastNoiseCL::GetCellular(Range x, Range y, Range z) {
             params.push_back(s);
             fnp = fnp->m_cellularNoiseLookup;
         }
-
-
-        m_noiseType = t;
+        params[0].m_noiseType = static_cast<int>(Cellular);
 
         return kernel_adapter->GEN_Lookup_Cellular3(
             params.data(), params.size(),

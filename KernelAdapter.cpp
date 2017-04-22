@@ -5,7 +5,6 @@
 #include <assert.h>
 
 #include <string>
-#include <iostream>
 
 using namespace std;
 
@@ -525,7 +524,6 @@ float* KernelAdapter::GEN_WhiteNoiseInt4(
     cl::Kernel kernel(pimpl->kernels[WHITENOISEINT4]);
     return exec_kernel_4D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
 }
-
 
 //NoiseLookup
 float* KernelAdapter::GEN_Lookup_Cellular2(
