@@ -1,0 +1,5 @@
+#include "resources.h"
+
+MAINICON ICON "cb.ico"
+APP_IMAGE RES_FILE "cb.png"
+ARIAL RES_FILE "arial.ttf"
