@@ -526,7 +526,6 @@ float* KernelAdapter::GEN_WhiteNoiseInt4(
     return exec_kernel_4D<int>(kernel, pimpl->context, *pimpl->device, param, size_x, size_y, size_z, size_w, scale_x, scale_y, scale_z, scale_w, offset_x, offset_y, offset_z, offset_w);
 }
 
-
 //NoiseLookup
 float* KernelAdapter::GEN_Lookup_Cellular2(
     Snapshot* params, size_t size_p, // IN : members of all classes

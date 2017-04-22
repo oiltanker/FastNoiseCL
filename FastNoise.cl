@@ -2972,58 +2972,59 @@ __kernel void GEN_Lookup_Cellular2(
     //Calculate value
     int err = 0;
     for (ulong i = 0; i < size_p; i++) {
-        __global Snapshot* p = &params[i];
+        Snapshot p = params[i];
 
-        switch(p->m_perturb) {
+        switch(p.m_perturb) {
         case 1:
-            Perturb2(p->m_perturbAmp, p->m_frequency, p->m_interp, p->m_seed, &x, &y);
+            Perturb2(p.m_perturbAmp, p.m_frequency, p.m_interp, p.m_seed, &x, &y);
             break;
         case 2:
-            PerturbFractal2(p->m_perturbAmp, p->m_fractalBounding, p->m_frequency, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_interp, p->m_seed, &x, &y);
+            PerturbFractal2(p.m_perturbAmp, p.m_fractalBounding, p.m_frequency, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_interp, p.m_seed, &x, &y);
             break;
         default:
             break;
         }
 
-        switch(p->m_noiseType) {
+        switch(p.m_noiseType) {
         case 0:
-            noise[index] = GetValue2(p->m_frequency, p->m_interp, p->m_seed, x, y);
+            noise[index] = GetValue2(p.m_frequency, p.m_interp, p.m_seed, x, y);
             return;
             break;
         case 1:
-            noise[index] = GetValueFractal2(p->m_fractalType, p->m_frequency, p->m_lacunarity, p->m_gain, p->m_octaves, p->m_fractalBounding, p->m_interp, p->m_seed, x, y);
+            noise[index] = GetValueFractal2(p.m_fractalType, p.m_frequency, p.m_lacunarity, p.m_gain, p.m_octaves, p.m_fractalBounding, p.m_interp, p.m_seed, x, y);
             return;
             break;
         case 2:
-            noise[index] = GetPerlin2(p->m_frequency, p->m_interp, p->m_seed, x, y);
+            noise[index] = GetPerlin2(p.m_frequency, p.m_interp, p.m_seed, x, y);
             return;
             break;
         case 3:
-            noise[index] = GetPerlinFractal2(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_interp, p->m_seed, x, y);
+            noise[index] = GetPerlinFractal2(p.m_frequency, p.m_fractalType, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_fractalBounding, p.m_interp, p.m_seed, x, y);
             return;
             break;
         case 4:
-            noise[index] = GetSimplex2(p->m_frequency, p->m_seed, x, y);
+            noise[index] = GetSimplex2(p.m_frequency, p.m_seed, x, y);
             return;
             break;
         case 5:
-            noise[index] = GetSimplexFractal2(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_seed, x, y);
+            noise[index] = GetSimplexFractal2(p.m_frequency, p.m_fractalType, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_fractalBounding, p.m_seed, x, y);
             return;
             break;
         case 6:
-            switch(p->m_cellularReturnType) {
+            switch(p.m_cellularReturnType) {
             case 1:
-                x *= p->m_frequency;
-                y *= p->m_frequency;
-                SingleCellular2L(p->m_cellularDistanceFunction, p->m_seed, &x, &y);
+                x *= p.m_frequency;
+                y *= p.m_frequency;
+                SingleCellular2L(p.m_cellularDistanceFunction, p.m_seed, &x, &y);
                 break;
             default:
-                noise[index] = GetCellular2(p->m_frequency, p->m_cellularDistanceFunction, p->m_cellularReturnType, p->m_seed, x, y);
+                noise[index] = GetCellular2(p.m_frequency, p.m_cellularDistanceFunction, p.m_cellularReturnType, p.m_seed, x, y);
                 return;
                 break;
             }
+            break;
         case 7:
-            noise[index] = GetWhiteNoise2(p->m_seed, x, y);
+            noise[index] = GetWhiteNoise2(p.m_seed, x, y);
             return;
             break;
         }
@@ -3053,59 +3054,60 @@ __kernel void GEN_Lookup_Cellular3(
     //Calculate value
     int err = 0;
     for (ulong i = 0; i < size_p; i++) {
-        __global Snapshot *p = &params[i];
+        Snapshot p = params[i];
 
-        switch(p->m_perturb) {
+        switch(params[i].m_perturb) {
         case 1:
-            Perturb3(p->m_perturbAmp, p->m_frequency, p->m_interp, p->m_seed, &x, &y, &z);
+            Perturb3(p.m_perturbAmp, p.m_frequency, p.m_interp, p.m_seed, &x, &y, &z);
             break;
         case 2:
-            PerturbFractal3(p->m_perturbAmp, p->m_fractalBounding, p->m_frequency, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_interp, p->m_seed, &x, &y, &z);
+            PerturbFractal3(p.m_perturbAmp, p.m_fractalBounding, p.m_frequency, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_interp, p.m_seed, &x, &y, &z);
             break;
         default:
             break;
         }
 
-        switch(p->m_noiseType) {
+        switch(params[i].m_noiseType) {
         case 0:
-            noise[index] = GetValue3(p->m_frequency, p->m_interp, p->m_seed, x, y, z);
+            noise[index] = GetValue3(p.m_frequency, p.m_interp, p.m_seed, x, y, z);
             return;
             break;
         case 1:
-            noise[index] = GetValueFractal3(p->m_fractalType, p->m_frequency, p->m_lacunarity, p->m_gain, p->m_octaves, p->m_fractalBounding, p->m_interp, p->m_seed, x, y, z);
+            noise[index] = GetValueFractal3(p.m_fractalType, p.m_frequency, p.m_lacunarity, p.m_gain, p.m_octaves, p.m_fractalBounding, p.m_interp, p.m_seed, x, y, z);
             return;
             break;
         case 2:
-            noise[index] = GetPerlin3(p->m_frequency, p->m_interp, p->m_seed, x, y, z);
+            noise[index] = GetPerlin3(p.m_frequency, p.m_interp, p.m_seed, x, y, z);
             return;
             break;
         case 3:
-            noise[index] = GetPerlinFractal3(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_interp, p->m_seed, x, y, z);
+            noise[index] = GetPerlinFractal3(p.m_frequency, p.m_fractalType, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_fractalBounding, p.m_interp, p.m_seed, x, y, z);
             return;
             break;
         case 4:
-            noise[index] = GetSimplex3(p->m_frequency, p->m_seed, x, y, z);
+            noise[index] = GetSimplex3(p.m_frequency, p.m_seed, x, y, z);
             return;
             break;
         case 5:
-            noise[index] = GetSimplexFractal3(p->m_frequency, p->m_fractalType, p->m_octaves, p->m_lacunarity, p->m_gain, p->m_fractalBounding, p->m_seed, x, y, z);
+            noise[index] = GetSimplexFractal3(p.m_frequency, p.m_fractalType, p.m_octaves, p.m_lacunarity, p.m_gain, p.m_fractalBounding, p.m_seed, x, y, z);
             return;
             break;
         case 6:
-            switch(p->m_cellularReturnType) {
+            switch(p.m_cellularReturnType) {
             case 1:
-                x *= p->m_frequency;
-                y *= p->m_frequency;
-                z *= p->m_frequency;
-                SingleCellular3L(p->m_cellularDistanceFunction, p->m_seed, &x, &y, &z);
+                x *= p.m_frequency;
+                y *= p.m_frequency;
+                z *= p.m_frequency;
+                SingleCellular3L(p.m_cellularDistanceFunction, p.m_seed, &x, &y, &z);
                 break;
             default:
-                noise[index] = GetCellular3(p->m_frequency, p->m_cellularDistanceFunction, p->m_cellularReturnType, p->m_seed, x, y, z);
+                noise[index] = GetCellular3(p.m_frequency, p.m_cellularDistanceFunction, p.m_cellularReturnType, p.m_seed, x, y, z);
                 return;
                 break;
             }
+            break;
         case 7:
-            noise[index] = GetWhiteNoise3(p->m_seed, x, y, z);
+            noise[index] = GetWhiteNoise3(p.m_seed, x, y, z);
             return;
             break;
         }
